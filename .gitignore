@@ -1,0 +1,16 @@
+# Dependencias de Node (Frontend) - LO MÁS PESADO
+node_modules/
+
+# entorno virtual de Python (Backend) poner nombres de sus entornos
+venv/
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Variables de entorno y configuración local (Sensible)
+.env
+.flaskenv
