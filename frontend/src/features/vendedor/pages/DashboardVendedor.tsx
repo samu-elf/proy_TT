@@ -12,6 +12,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { productosApi }  from '../../../api/productos';
 import { vendedorApi }   from '../../../api/vendedor';
+//n10
+import ComprobanteVisual from "../../pedidos/components/ComprobanteVisual";
 import type { Producto, Categoria } from '../../../types';
 import type {
   DashboardVendedorData,
@@ -59,6 +61,7 @@ const FORM_VACÍO: FormProducto = {
 interface Props { onLogout: () => void }
 
 // ─── Componentes auxiliares ───────────────────────────────────────────────────
+
 
 function StatCard({ label, value, color = ACCENT, icon, sub }: {
   label: string; value: string | number; color?: string; icon: string; sub?: string;
@@ -162,6 +165,9 @@ export default function DashboardVendedor({ onLogout }: Props) {
 
   const ok  = (msg: string) => setToast({ msg, type: 'ok' });
   const err = (msg: string) => setToast({ msg, type: 'err' });
+
+  //n10
+  const [pedidoParaComprobante, setPedidoParaComprobante] = useState<PedidoVendedor | null>(null);
 
   // ── Cargar datos según vista ───────────────────────────────────────────────
 
@@ -765,6 +771,28 @@ export default function DashboardVendedor({ onLogout }: Props) {
               </div>
             </div>
 
+            {/* n10 */}
+            {pedidoDetalle && (
+              <div style={{ marginTop: 16, padding: 16, background: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                {/* ... cabecera del detalle, tabla de items, etc... */}
+
+                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  {/* BOTÓN NUEVO: DIBUJAR COMPROBANTE */}
+                  <button 
+                    className="btn btn-sm btn-outline-secondary fw-semibold"
+                    onClick={() => setPedidoParaComprobante(pedidoDetalle)} // Activa el dibujo
+                  >
+                    📄 Ver Comprobante
+                  </button>
+
+                  {/* Tu select y botón de cambiar estado existentes */}
+                  <select /* ... */ />
+                  <button /* ... cambiarEstadoPedido ... */ />
+                </div>
+              </div>
+            )}
+            {/*fin n10*/}
+
             {/* Filtro estado */}
             <div style={{ marginBottom: 16 }}>
               <select className="form-select form-select-sm" style={{ maxWidth: 180 }}
@@ -964,6 +992,14 @@ export default function DashboardVendedor({ onLogout }: Props) {
                   <div className="card border-0 rounded-3"
                     style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.08)', padding: '20px' }}>
                     <h6 style={{ fontWeight: 700, marginBottom: 12 }}>Actualizar estado del pedido</h6>
+                    {/* n10 */}
+                    <button 
+                        className="btn btn-sm btn-outline-primary fw-bold px-3"
+                        onClick={() => setPedidoParaComprobante(pedidoDetalle)}
+                        type="button"
+                      >
+                        📄 Ver Comprobante
+                    </button>
                     <div className="row g-2">
                       <div className="col-md-5">
                         <select className="form-select form-select-sm"
@@ -1110,6 +1146,12 @@ export default function DashboardVendedor({ onLogout }: Props) {
         )}
 
       </main>
+
+      //n10
+      <ComprobanteVisual 
+        pedido={pedidoParaComprobante} 
+        onClose={() => setPedidoParaComprobante(null)} 
+      />
 
       {/* Notificaciones y modales globales */}
       {toast    && <Toast    msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />}

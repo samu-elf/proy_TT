@@ -24,8 +24,10 @@ export interface DetallePedidoVendedor {
   id_producto:     number;
   nombre_producto: string;
   cantidad:        number;
-  precio_unitario: number;
   subtotal:        number;
+  precio_unitario?: number;
+  //nuevos
+  producto?:       Producto;
 }
 
 export interface PedidoVendedor {
@@ -39,6 +41,7 @@ export interface PedidoVendedor {
   codigo_seguimiento?:string;
   fecha:              string;
   actualizado?:       string;
+
   // Ítems filtrados solo del vendedor
   mis_detalles:       DetallePedidoVendedor[];
   subtotal_vendedor:  number;
@@ -49,6 +52,10 @@ export interface PedidoVendedor {
   cliente_nombre?:    string;
   cliente_email?:     string;
   cliente_telefono?:  string;
+  //nuevos
+  created_at?:        Date;
+  monto_descuento?:   string;
+  guia_envio?:       string;
 }
 
 export interface PerfilVendedor {
