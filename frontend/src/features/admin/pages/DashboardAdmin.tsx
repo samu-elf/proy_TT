@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { productosApi } from '../../../api/productos';
 import { pedidosApi }   from '../../../api/pedidos';
 import { usuariosApi, clientesAdminApi }  from '../../../api/usuarios';
+import { reportesAdminApi } from '../../../api/reportesAdmin';
 import type { Producto, Pedido, UsuarioInterno } from '../../../types';
 
 // ─── Tipografía centralizada ─────────────────────────────────────────────────
@@ -46,6 +47,74 @@ interface Resumen {
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
+
+/** Selector de mes/año + botón de descarga PDF para reportes mensuales */
+function ReportesMesSelectorPdf({
+  label,
+  onDescargar,
+}: {
+  label: string;
+  onDescargar: (mes: number, anio: number) => void;
+}) {
+  const hoy = new Date();
+  const [mes,  setMes]  = useState(hoy.getMonth() + 1);
+  const [anio, setAnio] = useState(hoy.getFullYear());
+  const años = Array.from({ length: 5 }, (_, i) => hoy.getFullYear() - i);
+  const meses = [
+    'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <select className="form-select form-select-sm" value={mes}
+          onChange={e => setMes(Number(e.target.value))} style={{ flex: 1 }}>
+          {meses.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+        </select>
+        <select className="form-select form-select-sm" value={anio}
+          onChange={e => setAnio(Number(e.target.value))} style={{ width: 90 }}>
+          {años.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      <button
+        className="btn btn-sm text-white fw-semibold w-100"
+        style={{ background: '#6c63ff', border: 'none' }}
+        onClick={() => onDescargar(mes, anio)}
+      >
+        ⬇ {label}
+      </button>
+    </div>
+  );
+}
+
+/** Selector de fecha + botón de descarga para el manifiesto logístico */
+function ReportesManifiestoSelector({
+  onDescargar,
+}: {
+  onDescargar: (fecha: string) => void;
+}) {
+  const hoy   = new Date().toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(hoy);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <input
+        type="date"
+        className="form-control form-control-sm"
+        value={fecha}
+        max={hoy}
+        onChange={e => setFecha(e.target.value)}
+      />
+      <button
+        className="btn btn-sm text-white fw-semibold w-100"
+        style={{ background: '#6c63ff', border: 'none' }}
+        onClick={() => onDescargar(fecha)}
+      >
+        ⬇ Generar Manifiesto
+      </button>
+    </div>
+  );
+}
+
 function StatCard({ label, value, color = '#6c63ff', icon }: {
   label: string; value: string | number; color?: string; icon: string;
 }) {
@@ -633,6 +702,8 @@ export default function DashboardAdmin({ onLogout, userRole = 2 }: Props) {
         {vista === 'reportes' && isAdmin && (
           <>
             <h1 style={T.pageTitle}>Reportes y métricas</h1>
+
+            {/* ── KPIs en tiempo real ─────────────────────────────────── */}
             {resumen ? (
               <>
                 <div className="row g-3 mb-4">
@@ -640,7 +711,7 @@ export default function DashboardAdmin({ onLogout, userRole = 2 }: Props) {
                   <div className="col-md-4"><StatCard label="Total pedidos"    value={resumen.total_pedidos}    icon="🧾" /></div>
                   <div className="col-md-4"><StatCard label="Clientes"          value={resumen.total_clientes}   icon="👥" color="#2196F3" /></div>
                 </div>
-                <div className="card border-0 rounded-3 p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                <div className="card border-0 rounded-3 p-4 mb-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
                   <h6 style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 16 }}>Desglose por estado</h6>
                   <table className="table table-striped" style={{ fontSize: '0.875rem' }}>
                     <thead><tr><th>Estado</th><th>Cantidad</th><th>Total (Bs)</th></tr></thead>
@@ -659,6 +730,71 @@ export default function DashboardAdmin({ onLogout, userRole = 2 }: Props) {
             ) : (
               <div className="text-center py-5"><div className="spinner-border" style={{ color: '#6c63ff' }} /></div>
             )}
+
+            {/* ── Reportes PDF ────────────────────────────────────────── */}
+            <div className="card border-0 rounded-3 p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+              <h6 style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 4 }}>📑 Exportar Reportes PDF</h6>
+              <p style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: 20 }}>
+                Genera documentos oficiales firmados con la información del período seleccionado.
+              </p>
+
+              <div className="row g-4">
+
+                {/* 1 – Facturación Global */}
+                <div className="col-md-4">
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 20, height: '100%' }}>
+                    <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>📊</div>
+                    <h6 style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 4 }}>
+                      Facturación Global y Comisiones
+                    </h6>
+                    <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 16 }}>
+                      GMV total, comisiones netas, impuestos y desglose por pasarela de pago.
+                      Balance mensual para auditorías y dirección.
+                    </p>
+                    <ReportesMesSelectorPdf
+                      label="Generar Facturación"
+                      onDescargar={(m, a) => reportesAdminApi.descargarFacturacionGlobal(m, a)}
+                    />
+                  </div>
+                </div>
+
+                {/* 2 – Pago a Vendedores */}
+                <div className="col-md-4">
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 20, height: '100%' }}>
+                    <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>💰</div>
+                    <h6 style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 4 }}>
+                      Pago a Vendedores (Payout)
+                    </h6>
+                    <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 16 }}>
+                      Matriz de ventas brutas, comisiones deducidas y monto neto a transferir
+                      por cada tienda. Para tesorería y dispersión de fondos.
+                    </p>
+                    <ReportesMesSelectorPdf
+                      label="Generar Payout"
+                      onDescargar={(m, a) => reportesAdminApi.descargarPagoVendedores(m, a)}
+                    />
+                  </div>
+                </div>
+
+                {/* 3 – Manifiesto Logístico */}
+                <div className="col-md-4">
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 20, height: '100%' }}>
+                    <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>🚚</div>
+                    <h6 style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 4 }}>
+                      Manifiesto Logístico Diario
+                    </h6>
+                    <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 16 }}>
+                      Listado de pedidos a despachar agrupados por zona geográfica,
+                      con vendedor asignado por ítem. Para coordinación de rutas.
+                    </p>
+                    <ReportesManifiestoSelector
+                      onDescargar={(f) => reportesAdminApi.descargarManifiestoLogistico(f)}
+                    />
+                  </div>
+                </div>
+
+              </div>
+            </div>
           </>
         )}
 

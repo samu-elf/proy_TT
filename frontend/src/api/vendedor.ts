@@ -24,10 +24,8 @@ export interface DetallePedidoVendedor {
   id_producto:     number;
   nombre_producto: string;
   cantidad:        number;
+  precio_unitario: number;
   subtotal:        number;
-  precio_unitario?: number;
-  //nuevos
-  producto?:       Producto;
 }
 
 export interface PedidoVendedor {
@@ -41,7 +39,6 @@ export interface PedidoVendedor {
   codigo_seguimiento?:string;
   fecha:              string;
   actualizado?:       string;
-
   // Ítems filtrados solo del vendedor
   mis_detalles:       DetallePedidoVendedor[];
   subtotal_vendedor:  number;
@@ -52,10 +49,6 @@ export interface PedidoVendedor {
   cliente_nombre?:    string;
   cliente_email?:     string;
   cliente_telefono?:  string;
-  //nuevos
-  created_at?:        Date;
-  monto_descuento?:   string;
-  guia_envio?:       string;
 }
 
 export interface PerfilVendedor {
@@ -106,4 +99,52 @@ export const vendedorApi = {
       url:    '/vendedor/perfil',
       data,
     }),
+};
+
+
+// ─── Helpers internos de descarga PDF ────────────────────────────────────────
+
+function _abrirPdfVendedor(ruta: string, nombreArchivo: string): void {
+  const token   = localStorage.getItem('admin_token') ?? '';
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL as string) ?? 'http://localhost:5000';
+  fetch(`${baseUrl}${ruta}`, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => {
+      if (!r.ok) throw new Error(`Error ${r.status} al generar el PDF`);
+      return r.blob();
+    })
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href    = url;
+      a.target  = '_blank';
+      a.download = nombreArchivo;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    })
+    .catch(err => alert(`No se pudo generar el PDF: ${(err as Error).message}`));
+}
+
+// ─── Reportes PDF del Vendedor ────────────────────────────────────────────────
+
+export const reportesVendedorApi = {
+  /**
+   * Descarga la factura/comprobante de venta de un pedido específico.
+   * Detonante: pago verificado por el admin.
+   */
+  descargarFacturaPedido(pedidoId: number): void {
+    _abrirPdfVendedor(
+      `/vendedor/reportes/factura/${pedidoId}`,
+      `factura_pedido_${pedidoId}.pdf`,
+    );
+  },
+
+  /**
+   * Genera bajo demanda el reporte de inventario con alertas de stock.
+   */
+  descargarInventario(): void {
+    const hoy = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    _abrirPdfVendedor('/vendedor/reportes/inventario', `inventario_${hoy}.pdf`);
+  },
 };

@@ -1,221 +1,154 @@
-# Chukuta Express — E-commerce Multivendedor
+# Chukuta Express — E-commerce Multivendedor v3.0
 
 Sistema completo de e-commerce multivendedor con módulos de Cliente, Vendedor y Administrador.
-
-# borrar bd y crear de nuveo, copiar los querys de database.sql
-
-# credencial postgre en -> backend\.env ->DB PASSWORD
-# admins y vendedores
-| Rol         | Email                   | Contraseña    | Panel                          |
-|-------------|-------------------------|---------------|--------------------------------|
-| Admin       | admin@chukuta.com       | Admin123!     | localhost:5173/admin           |
-| Vendedor 1  | vendedor1@test.com      | Vendedor123!  | localhost:5173/admin           |
-| Vendedor 2  | vendedor2@test.com      | Vendedor123!  | localhost:5173/admin           |
-| Cliente 1   | cliente1@test.com       | Cliente123!   | localhost:5173 (portal tienda) |
-| Cliente 2   | cliente2@test.com       | Cliente123!   | localhost:5173                 |
-| Cliente 3   | cliente3@test.com       | Cliente123!   | localhost:5173                 |
-
-# --- PNPM ---
-
-instala pnpm en variables de entorno automaticamente
-
-npm install -g pnpm
-
-Pasos para cambiar de npm a pnpm
-
-1. Limpiar el proyecto (¡Importante!)
-Para que no haya mezclas raras entre los dos gestores:
-
-Respaldar en otra carpeta los archivos:
-
-src (Carpeta)
-eslint.config.js
-index.html
-package.json
-tsconfig.app.json
-tsconfig.json
-tsconfig.node.json
-vite.config.ts
-
-luego borrar y dejar carpeta frontend vacia
-
-2. Instalar pnpm 
-
-luego en la carpeta frontend y ejecutar
-1
-pnpm init
-
-2
-pnpm install 
-o
-pnpm i
-
-3
-(copiar y pegar los archivos respaldados, copiar y reemplazar si pide)
-
-4
-pnpm add -D vite
-(los siguientes son opcionales probar antes
-pnpm run dev)
-pnpm add -D @vitejs/plugin-react
-pnpm add react react-dom
-pnpm add Bootstrap
-pnpm add react-router-dom axios
-
-5 Actualizar el .gitignore
-node_modules/
-.pnpm-debug.log*
-
-6
-pnpm run dev 
-
-
----
-
-## ✅ Correcciones aplicadas en esta versión (v2.1)
-
-### Bug 1 — Frontend sin estilos / "Failed to load url /src/main.tsx"
-**Causa:** El archivo `src/main.tsx` no existía en el proyecto. Vite lo busca como
-punto de entrada (declarado en `index.html`) y falla si no lo encuentra. Además,
-Bootstrap estaba instalado en `package.json` pero nunca se importaba, por eso la
-tienda se veía sin estilos.
-
-**Solución:** Se creó `frontend/src/main.tsx` con:
-- Montaje de React en `#root`
-- `import 'bootstrap/dist/css/bootstrap.min.css'` para habilitar todos los estilos
-
-### Bug 2 — Login admin/vendedor: `ValueError: Invalid hash method ''`
-**Causa:** El archivo `database.sql` contenía hashes generados con
-**bcrypt** (`$2b$12$...`), pero Werkzeug (la librería que usa Flask para verificar
-contraseñas) NO soporta bcrypt de serie — sólo sus propios formatos `pbkdf2:sha256`
-y `scrypt`. Al intentar verificar, Werkzeug leía el prefijo vacío/desconocido y
-lanzaba `ValueError: Invalid hash method ''`.
-
-**Solución:**
-- Los hashes de `database.sql` se
-  regeneraron con `werkzeug.security.generate_password_hash()` (formato `scrypt`).
-- Se añadió `backend/reset_passwords.py`: script de emergencia que regenera los
-  hashes directamente en la BD si ya la tienes importada.
 
 ---
 
 ## Credenciales de prueba
 
-| Rol         | Email                   | Contraseña    | Panel                          |
-|-------------|-------------------------|---------------|--------------------------------|
-| Admin       | admin@chukuta.com       | Admin123!     | localhost:5173/admin           |
-| Vendedor 1  | vendedor1@test.com      | Vendedor123!  | localhost:5173/admin           |
-| Vendedor 2  | vendedor2@test.com      | Vendedor123!  | localhost:5173/admin           |
-| Cliente 1   | cliente1@test.com       | Cliente123!   | localhost:5173 (portal tienda) |
-| Cliente 2   | cliente2@test.com       | Cliente123!   | localhost:5173                 |
-| Cliente 3   | cliente3@test.com       | Cliente123!   | localhost:5173                 |
+| Rol        | Email                  | Contraseña   | Panel                  |
+|------------|------------------------|--------------|------------------------|
+| Admin      | admin@chukuta.com      | Admin123!    | localhost:5173/admin   |
+| Vendedor 1 | vendedor1@test.com     | Vendedor123! | localhost:5173/admin   |
+| Vendedor 2 | vendedor2@test.com     | Vendedor123! | localhost:5173/admin   |
+| Cliente 1  | cliente1@test.com      | Cliente123!  | localhost:5173         |
+| Cliente 2  | cliente2@test.com      | Cliente123!  | localhost:5173         |
+| Cliente 3  | cliente3@test.com      | Cliente123!  | localhost:5173         |
+
+> **Credenciales de PostgreSQL:** editar `backend/.env` → campo `DB_PASSWORD`
 
 ---
 
-## Instalación en Windows
+## Requisitos previos
 
-### Requisitos previos
 - Python 3.11+
 - Node.js 18+
 - PostgreSQL 14+
+- pnpm 9+ (se instala en un solo paso, ver abajo)
 
 ---
 
-### 1. Base de datos
-
-Abre pgAdmin o la consola de PostgreSQL y ejecuta:
-
-```sql
-CREATE DATABASE chukutaexpress;
-```
-
-Luego importa la base de datos unificada (estructura y datos con hashes correctos):
+## 1. Base de datos
 
 ```cmd
+psql -U postgres -c "CREATE DATABASE chukutaexpress;"
 psql -U postgres -d chukutaexpress -f database.sql
 ```
 
-> **Si ya tenías la BD importada** con la versión anterior (hashes rotos), regenera
-> las contraseñas sin borrar nada:
+> **Si ya tienes la BD y las contraseñas no funcionan:**
 > ```cmd
-> cd backend
-> venv\Scripts\activate
-> python reset_passwords.py
+> cd backend && venv\Scripts\activate && python reset_passwords.py
 > ```
 
 ---
 
-### 2. Backend
+## 2. Backend (Flask)
 
 ```cmd
-cd chukuta-express\backend
+cd backend
 
-:: Crear y activar entorno virtual
+:: Entorno virtual
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate          # Windows
+:: source venv/bin/activate    # Linux / Mac
 
-:: Instalar dependencias
+:: Dependencias (incluye reportlab para PDFs)
 pip install -r requirements.txt
 
-:: Copiar y configurar variables de entorno
+:: Variables de entorno
 copy .env.example .env
 ```
 
-Edita `.env` con tus datos de PostgreSQL:
+Editar `.env`:
 
 ```env
 FLASK_ENV=development
-SECRET_KEY=cambia-esta-clave-secreta-en-produccion
+SECRET_KEY=cambia-esta-clave-secreta
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=chukutaexpress
 DB_USER=postgres
-DB_PASSWORD=tu_password_postgres
+DB_PASSWORD=TU_PASSWORD
 ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 ```cmd
-:: Cargar estructura completa y datos de ejemplo
-psql -U postgres -d chukutaexpress -f ..\database.sql
-```
-
-> **Alternativa en pgAdmin:** Abre `database.sql` con el Query Tool y ejecuta.
-
-```cmd
-:: Iniciar el servidor Flask
 python run.py
 ```
 
-El backend quedará disponible en `http://localhost:5000`
+Backend en: `http://localhost:5000`
 
 ---
 
-### 3. Frontend
+## 3. Frontend (React + Vite + **pnpm**)
 
-Abre una **nueva terminal**:
+### Instalación de pnpm (una sola vez en el sistema)
 
 ```cmd
-cd chukuta-express\frontend
+npm install -g pnpm
+```
+
+> pnpm se configura solo — no hay pasos adicionales ni carpetas a limpiar.
+> El campo `"packageManager": "pnpm@9.15.0"` en `package.json` bloquea la versión.
+
+### Instalar dependencias e iniciar
+
+```cmd
+cd frontend
 
 :: Copiar variables de entorno
 copy .env.example .env
 ```
 
-El `.env` debe contener:
+`.env` debe contener:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000
 ```
 
 ```cmd
-:: Instalar dependencias
-npm install
+:: Instalar todas las dependencias (equivalente a npm install)
+pnpm install
 
 :: Iniciar servidor de desarrollo
-npm run dev
+pnpm dev
 ```
 
-El frontend estará en `http://localhost:5173`
+Frontend en: `http://localhost:5173`
+
+### Comandos pnpm disponibles
+
+| Comando           | Equivalente npm       | Acción                          |
+|-------------------|-----------------------|---------------------------------|
+| `pnpm install`    | `npm install`         | Instala dependencias            |
+| `pnpm dev`        | `npm run dev`         | Servidor de desarrollo          |
+| `pnpm build`      | `npm run build`       | Build de producción             |
+| `pnpm preview`    | `npm run preview`     | Preview del build               |
+| `pnpm add axios`  | `npm install axios`   | Añadir una dependencia          |
+| `pnpm add -D vite`| `npm install -D vite` | Añadir devDependency            |
+| `pnpm remove pkg` | `npm uninstall pkg`   | Eliminar paquete                |
+| `pnpm type-check` | —                     | Verificar tipos TypeScript      |
+
+> **Nota:** `pnpm-lock.yaml` reemplaza a `package-lock.json`. Commitearlo siempre.
+
+---
+
+## Novedades v3.0 — Reportes PDF
+
+### Vendedor
+
+| Reporte | Cómo acceder | Detonante |
+|---------|-------------|-----------|
+| **Factura / Comprobante de Venta** | Botón "🧾 Descargar Factura PDF" en el detalle de pedido | Manual (al ver el pedido) |
+| **Inventario y Alertas de Stock** | Botón "📄 Reporte PDF" en la vista Productos o en Acciones rápidas | Bajo demanda |
+
+### Administrador
+
+| Reporte | Cómo acceder | Detonante |
+|---------|-------------|-----------|
+| **Facturación Global y Comisiones** | Panel Reportes → seleccionar mes/año | Cierre mensual fiscal |
+| **Pago a Vendedores (Payout)** | Panel Reportes → seleccionar mes/año | Ciclo de dispersión de fondos |
+| **Manifiesto Logístico Diario** | Panel Reportes → seleccionar fecha | Cada mañana antes de rutas |
 
 ---
 
@@ -226,140 +159,63 @@ chukuta-express/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── auth.py          # Login/registro cliente y usuarios
-│   │   │   ├── carrito.py       # Carrito de compras
-│   │   │   ├── cliente.py       # Perfil e historial del cliente  ← NUEVO
-│   │   │   ├── pedidos.py       # Pedidos (cliente + admin)
-│   │   │   ├── productos.py     # Catálogo y CRUD
-│   │   │   ├── usuarios.py      # Gestión de usuarios (admin)
-│   │   │   └── vendedor.py      # Dashboard y gestión del vendedor ← NUEVO
-│   │   ├── middleware/auth.py   # JWT + decoradores de rol
-│   │   ├── models/__init__.py  # SQLAlchemy models
-│   │   ├── services/auditoria.py
-│   │   └── utils/
-│   ├── config/settings.py
-│   ├── requirements.txt
+│   │   │   ├── auth.py
+│   │   │   ├── carrito.py
+│   │   │   ├── cliente.py
+│   │   │   ├── pedidos.py
+│   │   │   ├── productos.py
+│   │   │   ├── reportes.py      ← NUEVO v3.0 (5 endpoints PDF)
+│   │   │   ├── usuarios.py
+│   │   │   └── vendedor.py
+│   │   ├── middleware/auth.py
+│   │   ├── models/__init__.py
+│   │   └── services/
+│   │       ├── auditoria.py
+│   │       └── pdf_reportes.py  ← NUEVO v3.0 (ReportLab)
+│   ├── requirements.txt         ← actualizado (+reportlab)
 │   └── run.py
 │
 ├── frontend/
 │   └── src/
 │       ├── api/
-│       │   ├── cliente.ts       # GET/PUT /cliente/perfil  ← NUEVO
-│       │   ├── vendedor.ts      # Todos los endpoints del vendedor ← NUEVO
+│       │   ├── reportesAdmin.ts ← NUEVO v3.0
+│       │   ├── vendedor.ts      ← actualizado (+reportesVendedorApi)
 │       │   └── ...
-│       ├── features/
-│       │   ├── admin/pages/DashboardAdmin.tsx
-│       │   ├── cliente/pages/PerfilCliente.tsx  ← NUEVO
-│       │   ├── pedidos/pages/MisPedidos.tsx     (actualizado)
-│       │   └── vendedor/pages/DashboardVendedor.tsx (completo)
-│       └── components/layout/Navbar.tsx         (con link a perfil)
+│       └── features/
+│           ├── admin/pages/DashboardAdmin.tsx   ← actualizado (panel PDF)
+│           └── vendedor/pages/DashboardVendedor.tsx ← actualizado (botones PDF)
 │
 └── database.sql
 ```
 
 ---
 
-## Endpoints principales
+## Endpoints de Reportes PDF
 
-### Públicos
-| Método | Ruta                    | Descripción                  |
-|--------|-------------------------|------------------------------|
-| GET    | /productos              | Catálogo (activos, con stock)|
-| GET    | /productos/:id          | Detalle de producto          |
-| GET    | /productos/categorias   | Lista de categorías          |
-| POST   | /auth/cliente/registro  | Registro de cliente          |
-| POST   | /auth/cliente/login     | Login de cliente             |
-| POST   | /auth/login             | Login admin/vendedor         |
+### Vendedor
 
-### Cliente (requiere token cliente)
-| Método | Ruta                        | Descripción               |
-|--------|-----------------------------|---------------------------|
-| GET    | /cliente/carrito            | Ver carrito               |
-| POST   | /cliente/carrito            | Agregar producto          |
-| PUT    | /cliente/carrito/:id        | Actualizar cantidad        |
-| DELETE | /cliente/carrito/:id        | Eliminar ítem             |
-| POST   | /cliente/pedido             | Crear pedido desde carrito|
-| GET    | /cliente/mis-pedidos        | Historial de pedidos      |
-| GET    | /cliente/mis-pedidos/:id    | Detalle de pedido         |
-| GET    | /cliente/perfil             | Ver perfil                |
-| PUT    | /cliente/perfil             | Editar perfil             |
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/vendedor/reportes/factura/<id>` | Factura del pedido |
+| GET | `/vendedor/reportes/inventario` | Reporte de stock |
 
-### Vendedor (requiere token rol=1 o rol=2)
-| Método | Ruta                            | Descripción               |
-|--------|---------------------------------|---------------------------|
-| GET    | /vendedor/dashboard             | Estadísticas del vendedor |
-| GET    | /vendedor/productos             | Sus productos             |
-| GET    | /vendedor/pedidos               | Sus pedidos               |
-| GET    | /vendedor/pedidos/:id           | Detalle de un pedido      |
-| PATCH  | /vendedor/pedidos/:id/estado    | Cambiar estado            |
-| GET    | /vendedor/perfil                | Su perfil                 |
-| PUT    | /vendedor/perfil                | Actualizar perfil         |
+### Admin
 
-### Admin (requiere token rol=2)
-| Método | Ruta                            | Descripción               |
-|--------|---------------------------------|---------------------------|
-| GET    | /admin/usuarios                 | Listar usuarios           |
-| POST   | /admin/usuarios                 | Crear usuario             |
-| PUT    | /admin/usuarios/:id             | Editar usuario            |
-| DELETE | /admin/usuarios/:id             | Desactivar usuario        |
-| GET    | /admin/pedidos                  | Todos los pedidos         |
-| PATCH  | /admin/pedidos/:id/estado       | Cambiar estado pedido     |
-| GET    | /admin/reportes/resumen         | Estadísticas globales     |
-| GET    | /productos/admin/todos          | Todos los productos       |
-
----
-
-## Flujo completo de uso
-
-### Como Cliente
-1. Accede a `http://localhost:5173`
-2. Navega el catálogo o busca por nombre/categoría
-3. Haz clic en "+ Carrito" (te pedirá login si no estás autenticado)
-4. Regístrate o inicia sesión
-5. Ve al carrito (🛒), ingresa dirección y método de pago
-6. Confirma el pedido
-7. Consulta el estado en "Mis Pedidos"
-
-### Como Vendedor
-1. Accede a `http://localhost:5173/admin`
-2. Inicia sesión con `vendedor1@test.com` / `Vendedor123!`
-3. Dashboard: estadísticas de tus productos y pedidos
-4. "Productos" → gestiona tu catálogo
-5. "Pedidos" → ve los pedidos con tus ítems y actualiza estados
-
-### Como Admin
-1. Accede a `http://localhost:5173/admin`
-2. Inicia sesión con `admin@chukuta.com` / `Admin123!`
-3. Panel completo: productos, pedidos, usuarios, reportes
-4. Gestiona categorías, crea vendedores, verifica pagos
-
----
-
-## Nota sobre contraseñas en SQL
-
-Las contraseñas en `database.sql` están hasheadas con **scrypt** compatible con Werkzeug.  
-Si las contraseñas no funcionan (hash mismatch entre versiones de bcrypt), ejecuta
-este script para regenerarlas:
-
-```python
-# generar_hashes.py — ejecutar dentro del virtualenv
-from werkzeug.security import generate_password_hash
-print("Admin123!  :", generate_password_hash("Admin123!"))
-print("Vendedor123!:", generate_password_hash("Vendedor123!"))
-print("Cliente123! :", generate_password_hash("Cliente123!"))
-```
-
-Luego actualiza los valores en el SQL.
+| Método | Ruta | Parámetros | Descripción |
+|--------|------|-----------|-------------|
+| GET | `/admin/reportes/facturacion` | `?mes=5&anio=2026` | Facturación global |
+| GET | `/admin/reportes/pago-vendedores` | `?mes=5&anio=2026` | Payout summary |
+| GET | `/admin/reportes/manifiesto` | `?fecha=2026-05-22` | Manifiesto logístico |
 
 ---
 
 ## Producción
 
 ```cmd
-:: Backend con Gunicorn (Linux/Mac)
+:: Backend
 gunicorn -w 4 -b 0.0.0.0:5000 run:app
 
-:: Frontend (build)
-npm run build
-:: Sirve la carpeta dist/ con nginx o similar
+:: Frontend
+pnpm build
+:: Servir carpeta dist/ con nginx o similar
 ```

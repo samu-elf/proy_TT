@@ -39,6 +39,7 @@ def create_app(config=None):
     from app.api.usuarios import usuarios_bp
     from app.api.vendedor import vendedor_bp
     from app.api.cliente  import cliente_bp
+    from app.api.reportes  import reportes_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(productos_bp)
@@ -47,6 +48,7 @@ def create_app(config=None):
     app.register_blueprint(usuarios_bp)
     app.register_blueprint(vendedor_bp)
     app.register_blueprint(cliente_bp)
+    app.register_blueprint(reportes_bp)
 
     from app.utils.error_handlers import register_error_handlers
     register_error_handlers(app)
@@ -62,9 +64,7 @@ def create_app(config=None):
             db.create_all()
             _seed_initial_data()
             print("✓ Base de datos inicializada")
-
     return app
-
 
 def _configure_logging(app: Flask):
     level = logging.DEBUG if app.config.get("DEBUG") else logging.INFO
@@ -73,7 +73,6 @@ def _configure_logging(app: Flask):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-
 
 def _seed_initial_data():
     from werkzeug.security import generate_password_hash
