@@ -12,5 +12,4 @@ __pycache__/
 .pytest_cache/
 
 # Variables de entorno y configuración local (Sensible)
-.env
 .flaskenv
