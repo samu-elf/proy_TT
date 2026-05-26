@@ -64,7 +64,9 @@ def create_app(config=None):
             db.create_all()
             _seed_initial_data()
             print("✓ Base de datos inicializada")
+
     return app
+
 
 def _configure_logging(app: Flask):
     level = logging.DEBUG if app.config.get("DEBUG") else logging.INFO
@@ -73,6 +75,7 @@ def _configure_logging(app: Flask):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
 
 def _seed_initial_data():
     from werkzeug.security import generate_password_hash

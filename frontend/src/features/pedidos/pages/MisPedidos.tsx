@@ -31,6 +31,19 @@ export default function MisPedidos() {
   const [detalles,  setDetalles]  = useState<Record<number, DetallePedido[]>>({});
   const [loadingDet, setLoadingDet] = useState<number | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [descargando, setDescargando] = useState<number | null>(null);
+
+  const handleDescargarRecibo = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDescargando(id);
+    try {
+      await pedidosApi.descargarRecibo(id);
+    } catch {
+      alert('No se pudo descargar el recibo. Intenta nuevamente.');
+    } finally {
+      setDescargando(null);
+    }
+  };
 
   const cargarPedidos = useCallback(() => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -186,10 +199,25 @@ export default function MisPedidos() {
                     </div>
                   )}
 
-                  <div className={`alert alert-${p.pago_verificado ? 'success' : 'warning'} py-2 small mb-0`}>
-                    {p.pago_verificado
-                      ? '✅ Pago verificado'
-                      : '⏳ Pago pendiente de verificación. Envía tu comprobante al vendedor.'}
+                  <div className={`alert alert-${p.pago_verificado ? 'success' : 'warning'} py-2 small mb-0 d-flex justify-content-between align-items-center`}>
+                    <span>
+                      {p.pago_verificado
+                        ? '✅ Pago verificado'
+                        : '⏳ Pago pendiente de verificación. Envía tu comprobante al vendedor.'}
+                    </span>
+                    {p.pago_verificado && (
+                      <button 
+                        className="btn btn-sm btn-success" 
+                        onClick={(e) => handleDescargarRecibo(p.id_pedido, e)}
+                        disabled={descargando === p.id_pedido}
+                      >
+                        {descargando === p.id_pedido ? (
+                          <><span className="spinner-border spinner-border-sm me-1" /> Descargando...</>
+                        ) : (
+                          '📄 Descargar Recibo'
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

@@ -41,4 +41,24 @@ export const pedidosApi = {
 
   reporteResumen: () =>
     adminRequest({ method: 'GET', url: '/admin/reportes/resumen' }),
+
+  descargarRecibo: async (pedidoId: number, customFilename?: string, customTitulo?: string): Promise<void> => {
+    const token = localStorage.getItem('cliente_token');
+    const baseUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/cliente/mis-pedidos/${pedidoId}/recibo`;
+    const urlWithParams = customTitulo ? `${baseUrl}?titulo=${encodeURIComponent(customTitulo)}` : baseUrl;
+    
+    const response = await fetch(urlWithParams, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('No se pudo descargar el recibo');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = customFilename || `recibo_chukuta_${pedidoId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };

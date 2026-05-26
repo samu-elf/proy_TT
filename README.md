@@ -1,154 +1,222 @@
-# Chukuta Express — E-commerce Multivendedor v3.0
+# Chukuta Express — E-commerce Multivendedor v4.0
 
-Sistema completo de e-commerce multivendedor con módulos de Cliente, Vendedor y Administrador.
+Sistema completo de e-commerce multivendedor con módulos de **Cliente**, **Vendedor** y **Administrador**.  
+Stack: Flask (Python) + React (TypeScript + Tailwind/Bootstrap) + PostgreSQL.
 
 ---
 
 ## Credenciales de prueba
 
-| Rol        | Email                  | Contraseña   | Panel                  |
-|------------|------------------------|--------------|------------------------|
-| Admin      | admin@chukuta.com      | Admin123!    | localhost:5173/admin   |
-| Vendedor 1 | vendedor1@test.com     | Vendedor123! | localhost:5173/admin   |
-| Vendedor 2 | vendedor2@test.com     | Vendedor123! | localhost:5173/admin   |
-| Cliente 1  | cliente1@test.com      | Cliente123!  | localhost:5173         |
-| Cliente 2  | cliente2@test.com      | Cliente123!  | localhost:5173         |
-| Cliente 3  | cliente3@test.com      | Cliente123!  | localhost:5173         |
-
-> **Credenciales de PostgreSQL:** editar `backend/.env` → campo `DB_PASSWORD`
+| Rol        | Email                 | Contraseña   | Panel de acceso       |
+|------------|-----------------------|--------------|-----------------------|
+| Admin      | admin@chukuta.com     | Admin123!    | localhost:5173/admin  |
+| Vendedor 1 | vendedor1@test.com    | Vendedor123! | localhost:5173/admin  |
+| Vendedor 2 | vendedor2@test.com    | Vendedor123! | localhost:5173/admin  |
+| Cliente 1  | cliente1@test.com     | Cliente123!  | localhost:5173        |
+| Cliente 2  | cliente2@test.com     | Cliente123!  | localhost:5173        |
+| Cliente 3  | cliente3@test.com     | Cliente123!  | localhost:5173        |
 
 ---
 
 ## Requisitos previos
 
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 14+
-- pnpm 9+ (se instala en un solo paso, ver abajo)
+| Herramienta   | Versión mínima | Verificar                  |
+|---------------|----------------|----------------------------|
+| Python        | 3.11           | `python --version`         |
+| Node.js       | 18             | `node --version`           |
+| PostgreSQL    | 14             | `psql --version`           |
+| pnpm          | 9              | `pnpm --version`           |
+
+Instalar **pnpm** si no lo tienes (solo una vez):
+
+```bash
+npm install -g pnpm
+```
 
 ---
 
-## 1. Base de datos
+## Paso 1 — Base de datos
 
-```cmd
+El archivo `database.sql` crea **toda la estructura** e inserta los datos de ejemplo (50 productos en 9 categorías, 3 usuarios, 3 clientes y 5 pedidos de prueba). Ejecuta los dos comandos siguientes desde la raíz del proyecto:
+
+```bash
+# Crear la base de datos (solo la primera vez)
 psql -U postgres -c "CREATE DATABASE chukutaexpress;"
+
+# Cargar estructura y datos
 psql -U postgres -d chukutaexpress -f database.sql
 ```
 
-> **Si ya tienes la BD y las contraseñas no funcionan:**
-> ```cmd
-> cd backend && venv\Scripts\activate && python reset_passwords.py
-> ```
+> **Windows (PowerShell):** si `psql` no está en el PATH, agrégalo o usa la ruta completa:  
+> `& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -c "CREATE DATABASE chukutaexpress;"`
+
+Al finalizar verás una tabla de verificación con los totales:
+
+```
+ tabla     | total
+-----------+-------
+ Roles     |     3
+ Usuarios  |     3
+ Clientes  |     3
+ Categorías|     9
+ Productos |    50
+ Pedidos   |     5
+ Detalles  |    10
+ Historial |    15
+```
 
 ---
 
-## 2. Backend (Flask)
+## Paso 2 — Backend (Flask)
 
-```cmd
+```bash
 cd backend
 
-:: Entorno virtual
+# Crear y activar entorno virtual
 python -m venv venv
-venv\Scripts\activate          # Windows
-:: source venv/bin/activate    # Linux / Mac
 
-:: Dependencias (incluye reportlab para PDFs)
-pip install -r requirements.txt
+# Linux / macOS:
+source venv/bin/activate
 
-:: Variables de entorno
-copy .env.example .env
+# Windows (cmd):
+venv\Scripts\activate
+
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
 ```
 
-Editar `.env`:
+```bash
+# Instalar dependencias
+pip install -r requirements.txt
+```
+
+```bash
+# Copiar el archivo de variables de entorno
+cp .env.example .env        # Linux / macOS
+copy .env.example .env      # Windows
+```
+
+Editar `.env` con los datos de tu PostgreSQL:
 
 ```env
 FLASK_ENV=development
-SECRET_KEY=cambia-esta-clave-secreta
+PORT=5000
+
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=chukutaexpress
 DB_USER=postgres
-DB_PASSWORD=TU_PASSWORD
+DB_PASSWORD=TU_CONTRASEÑA_POSTGRES
+
+SECRET_KEY=cambia-esto-por-una-clave-larga-y-aleatoria
+JWT_EXPIRATION_HOURS=8
+
 ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-```cmd
+> **Generar un SECRET_KEY seguro:**
+> ```bash
+> python -c "import secrets; print(secrets.token_hex(32))"
+> ```
+
+```bash
+# Iniciar el backend
 python run.py
 ```
 
-Backend en: `http://localhost:5000`
+El backend queda disponible en **http://localhost:5000**.  
+Para verificar: `curl http://localhost:5000/health` debe devolver `{"status": "ok"}`.
 
 ---
 
-## 3. Frontend (React + Vite + **pnpm**)
+## Paso 3 — Frontend (React + Vite)
 
-### Instalación de pnpm (una sola vez en el sistema)
-
-```cmd
-npm install -g pnpm
-```
-
-> pnpm se configura solo — no hay pasos adicionales ni carpetas a limpiar.
-> El campo `"packageManager": "pnpm@9.15.0"` en `package.json` bloquea la versión.
-
-### Instalar dependencias e iniciar
-
-```cmd
+```bash
 cd frontend
 
-:: Copiar variables de entorno
-copy .env.example .env
+# Copiar variables de entorno del frontend
+cp .env.example .env        # Linux / macOS
+copy .env.example .env      # Windows
 ```
 
-`.env` debe contener:
+El archivo `.env` del frontend solo necesita una línea; el proxy de Vite ya está preconfigurado:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000
 ```
 
-```cmd
-:: Instalar todas las dependencias (equivalente a npm install)
+```bash
+# Instalar dependencias
 pnpm install
 
-:: Iniciar servidor de desarrollo
+# Iniciar servidor de desarrollo
 pnpm dev
 ```
 
-Frontend en: `http://localhost:5173`
-
-### Comandos pnpm disponibles
-
-| Comando           | Equivalente npm       | Acción                          |
-|-------------------|-----------------------|---------------------------------|
-| `pnpm install`    | `npm install`         | Instala dependencias            |
-| `pnpm dev`        | `npm run dev`         | Servidor de desarrollo          |
-| `pnpm build`      | `npm run build`       | Build de producción             |
-| `pnpm preview`    | `npm run preview`     | Preview del build               |
-| `pnpm add axios`  | `npm install axios`   | Añadir una dependencia          |
-| `pnpm add -D vite`| `npm install -D vite` | Añadir devDependency            |
-| `pnpm remove pkg` | `npm uninstall pkg`   | Eliminar paquete                |
-| `pnpm type-check` | —                     | Verificar tipos TypeScript      |
-
-> **Nota:** `pnpm-lock.yaml` reemplaza a `package-lock.json`. Commitearlo siempre.
+El frontend queda disponible en **http://localhost:5173**.
 
 ---
 
-## Novedades v3.0 — Reportes PDF
+## Resumen rápido (todos los pasos en orden)
 
-### Vendedor
+```bash
+# Terminal 1 — Base de datos (ejecutar una sola vez)
+psql -U postgres -c "CREATE DATABASE chukutaexpress;"
+psql -U postgres -d chukutaexpress -f database.sql
 
-| Reporte | Cómo acceder | Detonante |
-|---------|-------------|-----------|
-| **Factura / Comprobante de Venta** | Botón "🧾 Descargar Factura PDF" en el detalle de pedido | Manual (al ver el pedido) |
-| **Inventario y Alertas de Stock** | Botón "📄 Reporte PDF" en la vista Productos o en Acciones rápidas | Bajo demanda |
+# Terminal 2 — Backend
+cd backend
+python -m venv venv && source venv/bin/activate   # o .\venv\Scripts\Activate.ps1 en Windows
+pip install -r requirements.txt
+cp .env.example .env   # editar DB_PASSWORD y SECRET_KEY
+python run.py
 
-### Administrador
+# Terminal 3 — Frontend
+cd frontend
+pnpm install
+cp .env.example .env
+pnpm dev
+```
 
-| Reporte | Cómo acceder | Detonante |
-|---------|-------------|-----------|
-| **Facturación Global y Comisiones** | Panel Reportes → seleccionar mes/año | Cierre mensual fiscal |
-| **Pago a Vendedores (Payout)** | Panel Reportes → seleccionar mes/año | Ciclo de dispersión de fondos |
-| **Manifiesto Logístico Diario** | Panel Reportes → seleccionar fecha | Cada mañana antes de rutas |
+---
+
+## Solución de problemas frecuentes
+
+### Las contraseñas de ejemplo no funcionan
+
+Los hashes en `database.sql` son válidos para Werkzeug/scrypt. Si tienes problemas, regenera todas las contraseñas ejecutando desde `backend/` con el entorno virtual activo:
+
+```bash
+python reset_passwords.py
+```
+
+### Error de conexión a PostgreSQL
+
+Revisa que el servicio de PostgreSQL esté corriendo y que `DB_PASSWORD` en `.env` sea correcto. Puedes probar la conexión con:
+
+```bash
+psql -U postgres -d chukutaexpress -c "SELECT COUNT(*) FROM almacen;"
+```
+
+Debe devolver `50`.
+
+### `psql` no reconocido en Windows
+
+Agrega la carpeta `bin` de PostgreSQL al PATH o usa la ruta completa. Ejemplo para PostgreSQL 16:
+
+```
+C:\Program Files\PostgreSQL\16\bin\psql.exe
+```
+
+### Error `ALLOWED_ORIGINS` en el backend (CORS)
+
+Verifica que `ALLOWED_ORIGINS=http://localhost:5173` en `backend/.env` no tenga barra al final (`/`).
+
+### pnpm no encontrado
+
+```bash
+npm install -g pnpm
+```
 
 ---
 
@@ -159,63 +227,136 @@ chukuta-express/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── auth.py
-│   │   │   ├── carrito.py
-│   │   │   ├── cliente.py
-│   │   │   ├── pedidos.py
-│   │   │   ├── productos.py
-│   │   │   ├── reportes.py      ← NUEVO v3.0 (5 endpoints PDF)
-│   │   │   ├── usuarios.py
-│   │   │   └── vendedor.py
-│   │   ├── middleware/auth.py
-│   │   ├── models/__init__.py
+│   │   │   ├── auth.py          # Login cliente y usuario interno
+│   │   │   ├── carrito.py       # Gestión del carrito
+│   │   │   ├── cliente.py       # Perfil, pedidos y recibo PDF
+│   │   │   ├── pedidos.py       # CRUD pedidos y estados
+│   │   │   ├── productos.py     # Catálogo público y gestión interna
+│   │   │   ├── reportes.py      # PDFs para vendedor y admin
+│   │   │   ├── usuarios.py      # Gestión de usuarios internos
+│   │   │   └── vendedor.py      # Panel del vendedor
+│   │   ├── middleware/auth.py   # Decoradores JWT (cliente / usuario)
+│   │   ├── models/__init__.py   # Modelos SQLAlchemy
 │   │   └── services/
-│   │       ├── auditoria.py
-│   │       └── pdf_reportes.py  ← NUEVO v3.0 (ReportLab)
-│   ├── requirements.txt         ← actualizado (+reportlab)
-│   └── run.py
+│   │       ├── auditoria.py     # Log de auditoría
+│   │       ├── pdf_reportes.py  # PDFs de vendedor y admin (ReportLab)
+│   │       └── recibo_cliente.py# Recibo de compra del cliente (ReportLab)
+│   ├── config/settings.py
+│   ├── requirements.txt
+│   ├── run.py
+│   └── .env.example
 │
 ├── frontend/
 │   └── src/
-│       ├── api/
-│       │   ├── reportesAdmin.ts ← NUEVO v3.0
-│       │   ├── vendedor.ts      ← actualizado (+reportesVendedorApi)
-│       │   └── ...
+│       ├── api/                 # Clientes HTTP por dominio
+│       ├── components/layout/   # Navbar con búsqueda en tiempo real
 │       └── features/
-│           ├── admin/pages/DashboardAdmin.tsx   ← actualizado (panel PDF)
-│           └── vendedor/pages/DashboardVendedor.tsx ← actualizado (botones PDF)
+│           ├── admin/           # Panel administrador
+│           ├── auth/            # Login modal y contextos
+│           ├── carrito/         # Carrito + confirmación con PDF
+│           ├── catalogo/        # Catálogo público con filtros
+│           ├── cliente/         # Perfil del cliente
+│           ├── pedidos/         # Historial de pedidos con PDF
+│           └── vendedor/        # Panel del vendedor
 │
-└── database.sql
+└── database.sql                 # ← Único archivo SQL: estructura + 50 productos
 ```
 
 ---
 
-## Endpoints de Reportes PDF
+## Catálogo de productos incluidos
+
+El `database.sql` carga 50 productos distribuidos en 9 categorías, incluyendo productos con identidad boliviana:
+
+| Categoría         | Cant. | Ejemplos destacados                                        |
+|-------------------|-------|------------------------------------------------------------|
+| Electrónica       | 10    | Audífonos BT, Smartwatch, SSD externo, Hub USB-C           |
+| Ropa y Accesorios | 7     | **Chompa de alpaca**, **Chullo de Potosí**, **Bolso awayo**|
+| Hogar y Jardín    | 6     | Ollas, **Tazas fauna boliviana**, **Maceta de Tiwanaku**   |
+| Deportes          | 5     | Bicicleta MTB, Mancuernas, Colchoneta yoga                 |
+| Alimentos         | 6     | **Café de Yungas**, **Quinua real**, **Miel del Beni**     |
+| Juguetes          | 4     | **Rompecabezas Bolivia**, **Muñeca cholita**               |
+| Libros            | 4     | **Historia de Bolivia**, **Guía trekking andino**          |
+| Mascotas          | 4     | Cama ortopédica, Comedero automático                       |
+| Oficina           | 4     | Silla ergonómica, Monitor portátil, Kit papelería          |
+
+---
+
+## Funcionalidades principales
+
+### Cliente
+- Registro e inicio de sesión con JWT
+- Catálogo con búsqueda en tiempo real (barra de lupa en la navbar)
+- Filtro por categoría y paginación
+- Carrito de compras con control de stock
+- Finalización de pedido con dirección y método de pago
+- **Descarga de recibo PDF** en la confirmación y en el historial de pedidos
+- Historial de pedidos con estado detallado
 
 ### Vendedor
+- Dashboard con resumen de ventas e inventario
+- Gestión de productos (crear, editar, activar/desactivar)
+- Alertas de stock bajo
+- Descarga de factura PDF por pedido
+- Reporte PDF de inventario
 
+### Administrador
+- Panel completo con métricas globales
+- Gestión de usuarios (vendedores y operadores)
+- Gestión de pedidos y cambio de estados
+- Verificación de pagos
+- Reportes PDF: facturación global, pago a vendedores, manifiesto logístico
+
+---
+
+## Endpoints API — referencia rápida
+
+### Autenticación
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/vendedor/reportes/factura/<id>` | Factura del pedido |
-| GET | `/vendedor/reportes/inventario` | Reporte de stock |
+| POST | `/auth/login` | Login de cliente |
+| POST | `/auth/register` | Registro de cliente |
+| POST | `/auth/admin/login` | Login de usuario interno |
 
-### Admin
+### Productos (público)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/productos?q=cafe&categoria=Alimentos` | Listar con búsqueda y filtro |
+| GET | `/productos/<id>` | Detalle de producto |
+| GET | `/productos/categorias` | Lista de categorías activas |
 
-| Método | Ruta | Parámetros | Descripción |
-|--------|------|-----------|-------------|
-| GET | `/admin/reportes/facturacion` | `?mes=5&anio=2026` | Facturación global |
-| GET | `/admin/reportes/pago-vendedores` | `?mes=5&anio=2026` | Payout summary |
-| GET | `/admin/reportes/manifiesto` | `?fecha=2026-05-22` | Manifiesto logístico |
+### Cliente (requiere JWT cliente)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/cliente/perfil` | Datos del perfil |
+| GET | `/cliente/mis-pedidos` | Historial de pedidos |
+| GET | `/cliente/mis-pedidos/<id>/recibo` | **Descargar recibo PDF** |
+
+### Vendedor (requiere JWT vendedor/admin)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/vendedor/reportes/factura/<id>` | Factura PDF del pedido |
+| GET | `/vendedor/reportes/inventario` | Reporte PDF de stock |
+
+### Admin (requiere JWT admin)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/admin/reportes/facturacion?mes=5&anio=2026` | Facturación mensual PDF |
+| GET | `/admin/reportes/pago-vendedores?mes=5&anio=2026` | Payout summary PDF |
+| GET | `/admin/reportes/manifiesto?fecha=2026-05-22` | Manifiesto logístico PDF |
 
 ---
 
 ## Producción
 
-```cmd
-:: Backend
+```bash
+# Backend con Gunicorn
+cd backend
+source venv/bin/activate
 gunicorn -w 4 -b 0.0.0.0:5000 run:app
 
-:: Frontend
+# Frontend — generar build estático
+cd frontend
 pnpm build
-:: Servir carpeta dist/ con nginx o similar
+# Servir la carpeta dist/ con nginx, Apache o cualquier servidor estático
 ```

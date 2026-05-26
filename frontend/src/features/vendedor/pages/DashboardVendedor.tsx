@@ -9,7 +9,6 @@
  *   pedidos   → Pedidos que incluyen sus ítems + cambio de estado
  *   perfil    → Datos del vendedor
  */
-
 import { useEffect, useState, useCallback } from 'react';
 import { productosApi }  from '../../../api/productos';
 import { vendedorApi, reportesVendedorApi } from '../../../api/vendedor';
