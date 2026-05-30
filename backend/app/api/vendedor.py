@@ -17,7 +17,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 
 from app import db
-from app.middleware import require_vendedor
+from app.utils.auth import require_vendedor
 from app.models import (
     DetallePedido, HistorialPedido,
     Pedido, Producto, EstadoPedido, Usuario,

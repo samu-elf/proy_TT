@@ -130,7 +130,8 @@ CREATE TABLE pedido (
     operador_id         INTEGER       REFERENCES usuario(id_usuario),
     codigo_seguimiento  VARCHAR(50),
     created_at          TIMESTAMP     NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP     NOT NULL DEFAULT NOW()
+    updated_at          TIMESTAMP     NOT NULL DEFAULT NOW(),
+    comprobante_pago_url VARCHAR(500);
 );
 
 CREATE INDEX ix_pedido_cliente_estado ON pedido (id_cliente, estado);
@@ -257,7 +258,7 @@ INSERT INTO almacen (nombre, descripcion, stock, stock_minimo, precio_venta, id_
 
   ('Audífonos Bluetooth Premium',
    'Auriculares inalámbricos con cancelación de ruido activa y sonido Hi-Fi. Hasta 30h de batería, driver de 40mm, pliegue compacto para viaje. Compatibles con iOS y Android.',
-   45, 5, 289.00, 1, 2, TRUE, 'https://picsum.photos/seed/AudifonosBT/400/400', NOW(), NOW()),
+   45, 5, 289.00, 1, 2, TRUE, 'https://m.media-amazon.com/images/I/71JkH7qTWtL._AC_UY327_FMwebp_QL65_.jpg', NOW(), NOW()),
 
   ('Smartwatch Deportivo X200',
    'Reloj inteligente con GPS integrado, monitor de frecuencia cardíaca y SpO2. Resistente al agua IP68. Batería 7 días, más de 100 modos de ejercicio.',
@@ -358,7 +359,7 @@ INSERT INTO almacen (nombre, descripcion, stock, stock_minimo, precio_venta, id_
 
   ('Bicicleta de Montaña 21 Velocidades',
    'MTB con cuadro de aluminio 6061, horquilla de suspensión delantera 100mm, frenos de disco mecánicos Shimano y neumáticos 27.5×2.1. Ideal para los cerros de La Paz.',
-   12, 2, 2850.00, 4, 2, TRUE, 'https://picsum.photos/seed/BicicletaMTB/400/400', NOW(), NOW()),
+   12, 2, 2850.00, 4, 2, TRUE, 'https://m.media-amazon.com/images/I/71vW-X4Sf0L._AC_UY327_FMwebp_QL65_.jpg', NOW(), NOW()),
 
   ('Pelota de Fútbol Profesional N°5',
    'Balón termosellado de 32 paneles con carcasa de poliuretano y vejiga de látex. Presión recomendada 0.8 bar. Aprobada para cancha de grama y cemento.',

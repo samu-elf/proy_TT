@@ -19,12 +19,12 @@ from flask import Blueprint, Response, request
 from sqlalchemy import extract, func
 
 from app import db
-from app.middleware import require_admin, require_vendedor
+from app.utils.auth import require_admin, require_vendedor, require_cliente
 from app.models import (
     DetallePedido, EstadoPedido,
     Pedido, Producto, Usuario,
 )
-from app.services.pdf_reportes import (
+from app.utils.services import (
     generar_factura_pedido,
     generar_reporte_inventario,
     generar_facturacion_global,
@@ -373,3 +373,173 @@ def manifiesto_logistico_pdf():
         fecha_obj, len(pedidos_list), request.usuario_id,
     )
     return _pdf_response(pdf_bytes, f"manifiesto_{fecha_obj.strftime('%Y%m%d')}.pdf")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMPROBANTE DE PEDIDO PARA EL CLIENTE (auto)
+# ══════════════════════════════════════════════════════════════════════════════
+
+ESTADOS_COMPROBANTE = {
+    "confirmado", "en_preparacion", "en_camino", "entregado"
+}
+
+@reportes_bp.get("/cliente/reportes/comprobante/<int:pedido_id>")
+@require_cliente
+def comprobante_pedido_cliente(pedido_id: int):
+    """
+    El cliente descarga su comprobante de pedido.
+    Disponible cuando estado es confirmado, en_preparacion, en_camino o entregado.
+    """
+    from app.utils.services import generar_comprobante_cliente
+    from app.models import Cliente
+
+    cid = request.cliente_id
+    pedido = Pedido.query.filter_by(id_pedido=pedido_id, id_cliente=cid).first()
+    if not pedido:
+        return error_response("Pedido no encontrado", 404)
+    if pedido.estado not in ESTADOS_COMPROBANTE:
+        return error_response(f"El comprobante solo está disponible cuando el pedido está confirmado o en proceso (estado actual: {pedido.estado})", 400)
+
+    detalles = [
+        {**d.to_dict(), "nombre_producto": d.producto.nombre if d.producto else "—"}
+        for d in pedido.detalles
+    ]
+    pedido_dict = pedido.to_dict()
+    if pedido.cliente:
+        pedido_dict["cliente_nombre"]   = pedido.cliente.nombre
+        pedido_dict["cliente_telefono"] = pedido.cliente.telefono or "—"
+
+    try:
+        pdf_bytes = generar_comprobante_cliente(pedido_dict, detalles)
+    except Exception as exc:
+        logger.exception("Error comprobante cliente #%d: %s", pedido_id, exc)
+        return error_response("Error al generar el PDF", 500)
+
+    return _pdf_response(pdf_bytes, f"comprobante_pedido_{pedido_id}.pdf")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GUÍA DE ENVÍO PARA EL VENDEDOR
+# ══════════════════════════════════════════════════════════════════════════════
+
+ESTADOS_GUIA = {"confirmado", "en_preparacion", "en_camino", "entregado"}
+
+@reportes_bp.get("/vendedor/reportes/guia-envio/<int:pedido_id>")
+@require_vendedor
+def guia_envio_vendedor(pedido_id: int):
+    """
+    Guía de envío/etiqueta logística del vendedor para un pedido.
+    Solo muestra los ítems del vendedor que realiza la petición.
+    """
+    from app.utils.services import generar_guia_envio
+
+    vid = request.usuario_id
+
+    subq = (
+        db.session.query(DetallePedido.id_pedido)
+        .join(Producto, DetallePedido.id_producto == Producto.id_producto)
+        .filter(Producto.id_vendedor == vid)
+        .subquery()
+    )
+    pedido = Pedido.query.filter(
+        Pedido.id_pedido == pedido_id,
+        Pedido.id_pedido.in_(subq)
+    ).first()
+
+    if not pedido:
+        return error_response("Pedido no encontrado o no contiene productos de tu tienda", 404)
+    if pedido.estado not in ESTADOS_GUIA:
+        return error_response(f"La guía de envío solo está disponible desde estado 'confirmado' (estado actual: {pedido.estado})", 400)
+
+    mis_detalles = [
+        {**d.to_dict(), "nombre_producto": d.producto.nombre if d.producto else "—"}
+        for d in pedido.detalles
+        if d.producto and d.producto.id_vendedor == vid
+    ]
+    vendedor = Usuario.query.get(vid)
+    pedido_dict = pedido.to_dict()
+    if pedido.cliente:
+        pedido_dict["cliente_nombre"]   = pedido.cliente.nombre
+        pedido_dict["cliente_telefono"] = pedido.cliente.telefono or "—"
+
+    vendedor_dict = {
+        "nombre": vendedor.nombre if vendedor else "—",
+        "email":  vendedor.email  if vendedor else "—",
+    }
+
+    try:
+        pdf_bytes = generar_guia_envio(pedido_dict, mis_detalles, vendedor_dict)
+    except Exception as exc:
+        logger.exception("Error guía envío vendedor #%d: %s", pedido_id, exc)
+        return error_response("Error al generar el PDF", 500)
+
+    logger.info("Guía envío generada: pedido #%d por vendedor %d", pedido_id, vid)
+    return _pdf_response(pdf_bytes, f"guia_envio_pedido_{pedido_id}.pdf")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUBIDA DE COMPROBANTE DE PAGO (imagen) — Cliente
+# ══════════════════════════════════════════════════════════════════════════════
+
+import os, uuid
+from werkzeug.utils import secure_filename
+
+UPLOAD_FOLDER   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "uploads", "comprobantes")
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf"}
+MAX_FILE_SIZE   = 5 * 1024 * 1024  # 5 MB
+
+
+def _allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@reportes_bp.post("/cliente/pedidos/<int:pedido_id>/comprobante")
+@require_cliente
+def subir_comprobante_pago(pedido_id: int):
+    """
+    El cliente sube la imagen/PDF de su comprobante de pago.
+    Guarda el archivo en disco y actualiza comprobante_pago_url en el pedido.
+    """
+    cid = request.cliente_id
+    pedido = Pedido.query.filter_by(id_pedido=pedido_id, id_cliente=cid).first()
+    if not pedido:
+        return error_response("Pedido no encontrado", 404)
+
+    if "comprobante" not in request.files:
+        return error_response("No se envió ningún archivo (campo: comprobante)")
+
+    archivo = request.files["comprobante"]
+    if archivo.filename == "":
+        return error_response("El archivo está vacío")
+    if not _allowed_file(archivo.filename):
+        return error_response("Formato no permitido. Use JPG, PNG, WEBP o PDF")
+
+    # Leer y verificar tamaño
+    contenido = archivo.read()
+    if len(contenido) > MAX_FILE_SIZE:
+        return error_response("El archivo supera el tamaño máximo permitido de 5 MB")
+
+    # Guardar con nombre único
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    ext      = secure_filename(archivo.filename).rsplit(".", 1)[1].lower()
+    nombre   = f"pedido_{pedido_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    ruta     = os.path.join(UPLOAD_FOLDER, nombre)
+
+    with open(ruta, "wb") as f:
+        f.write(contenido)
+
+    # URL relativa que el frontend puede usar para mostrar la imagen
+    url_relativa = f"/uploads/comprobantes/{nombre}"
+    pedido.comprobante_pago_url = url_relativa
+    db.session.commit()
+
+    logger.info("Comprobante subido: pedido #%d cliente %d → %s", pedido_id, cid, url_relativa)
+    return {"mensaje": "Comprobante subido exitosamente", "url": url_relativa}, 201
+
+
+@reportes_bp.get("/uploads/comprobantes/<string:filename>")
+def servir_comprobante(filename: str):
+    """Sirve la imagen del comprobante (accessible por vendedor/admin autenticados también)."""
+    from flask import send_from_directory
+    carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "uploads", "comprobantes")
+    return send_from_directory(carpeta, secure_filename(filename))

@@ -237,6 +237,9 @@ class Pedido(db.Model, TimestampMixin):
     pago_verificado_por = db.Column(db.Integer, db.ForeignKey("usuario.id_usuario"))
     pago_verificado_at = db.Column(db.DateTime)
 
+    # Comprobante de pago (imagen subida por el cliente)
+    comprobante_pago_url = db.Column(db.String(500))   # ruta relativa o URL
+
     # Tracking logístico
     operador_id = db.Column(db.Integer, db.ForeignKey("usuario.id_usuario"))
     codigo_seguimiento = db.Column(db.String(50))
@@ -264,6 +267,7 @@ class Pedido(db.Model, TimestampMixin):
             "metodo_pago": self.metodo_pago,
             "pago_verificado": self.pago_verificado,
             "codigo_seguimiento": self.codigo_seguimiento,
+            "comprobante_pago_url": self.comprobante_pago_url,
             "fecha": self.created_at.isoformat(),
             "actualizado": self.updated_at.isoformat(),
         }

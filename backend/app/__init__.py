@@ -15,7 +15,7 @@ db = SQLAlchemy()
 def create_app(config=None):
     app = Flask(__name__)
 
-    from config import get_config
+    from settings import get_config            # <── movido a raíz backend/
     cfg = config or get_config()
     app.config.from_object(cfg)
 
@@ -31,14 +31,14 @@ def create_app(config=None):
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
 
-    # ── Blueprints ────────────────────────────────────────────────────────────
-    from app.api.auth     import auth_bp
+    # ── Blueprints (imports directos, sin api/__init__.py) ────────────────
+    from app.api.auth      import auth_bp
     from app.api.productos import productos_bp
-    from app.api.carrito  import carrito_bp
-    from app.api.pedidos  import pedidos_bp
-    from app.api.usuarios import usuarios_bp
-    from app.api.vendedor import vendedor_bp
-    from app.api.cliente  import cliente_bp
+    from app.api.carrito   import carrito_bp
+    from app.api.pedidos   import pedidos_bp
+    from app.api.usuarios  import usuarios_bp
+    from app.api.vendedor  import vendedor_bp
+    from app.api.cliente   import cliente_bp
     from app.api.reportes  import reportes_bp
 
     app.register_blueprint(auth_bp)
@@ -55,7 +55,7 @@ def create_app(config=None):
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "version": "2.1.0"}
+        return {"status": "ok", "version": "3.0.0"}
 
     @app.cli.command("init-db")
     def init_db():

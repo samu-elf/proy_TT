@@ -25,6 +25,7 @@ const T = {
 } as const;
 
 // ─── Estados de pedido ────────────────────────────────────────────────────────
+const API_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5000';
 const ESTADOS = ['pendiente','confirmado','en_preparacion','en_camino','entregado','cancelado'];
 const ESTADO_COLOR: Record<string, string> = {
   pendiente: '#f59e0b', confirmado: '#3b82f6', en_preparacion: '#8b5cf6',
@@ -474,6 +475,7 @@ export default function DashboardAdmin({ onLogout, userRole = 2 }: Props) {
                         <th>Seguimiento</th>
                         <th>Total</th>
                         <th>Estado</th>
+                        <th>Comprobante</th>
                         <th>Fecha</th>
                         <th>Acciones</th>
                       </tr>
@@ -494,6 +496,31 @@ export default function DashboardAdmin({ onLogout, userRole = 2 }: Props) {
                             }}>
                               {p.estado.replace(/_/g,' ')}
                             </span>
+                          </td>
+                          <td>
+                            {p.comprobante_pago_url ? (
+                              p.comprobante_pago_url.endsWith('.pdf') ? (
+                                <a href={`${(import.meta.env.VITE_API_BASE_URL as string) ?? ''}${p.comprobante_pago_url}`}
+                                  target="_blank" rel="noreferrer"
+                                  className="btn btn-sm btn-outline-primary py-0 px-2"
+                                  style={{ fontSize: '0.75rem' }}>
+                                  📄 PDF
+                                </a>
+                              ) : (
+                                <a href={`${API_URL}${p.comprobante_pago_url}`}
+                                  target="_blank" rel="noreferrer">
+                                  <img
+                                    src={`${API_URL}${p.comprobante_pago_url}`}
+                                    alt="Comprobante"
+                                    style={{ width: 44, height: 44, objectFit: 'cover',
+                                             borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }}
+                                    title="Clic para ver comprobante completo"
+                                  />
+                                </a>
+                              )
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Sin comprobante</span>
+                            )}
                           </td>
                           <td style={T.small}>{new Date(p.fecha).toLocaleDateString('es-BO')}</td>
                           <td>

@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useCliente } from '../../features/auth/context/ClienteContext';
 import LoginModal from '../../features/auth/components/LoginModal';
@@ -8,13 +8,6 @@ export default function Navbar() {
   const [showLogin, setShowLogin]   = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropOpen, setDropOpen]     = useState(false);
-  const [busqueda, setBusqueda]     = useState('');
-  const [sugerencias, setSugerencias] = useState<Array<{id_producto: number; nombre: string; imagen_url?: string}>>([]);
-  const [buscando, setBuscando]     = useState(false);
-  const [showSug, setShowSug]       = useState(false);
-  const searchRef                   = useRef<HTMLDivElement>(null);
-  const debounceSearch              = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const navigate                    = useNavigate();
   const dropRef                     = useRef<HTMLDivElement>(null);
   const location                    = useLocation();
 
@@ -27,50 +20,9 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => { setMobileOpen(false); setDropOpen(false); setBusqueda(''); setSugerencias([]); setShowSug(false); }, [location.pathname]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node))
-        setShowSug(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  useEffect(() => { setMobileOpen(false); setDropOpen(false); }, [location.pathname]);
 
   const handleLogout = () => { logout(); setDropOpen(false); setMobileOpen(false); };
-
-  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const q = e.target.value;
-    setBusqueda(q);
-    if (debounceSearch.current) clearTimeout(debounceSearch.current);
-    if (!q.trim()) { setSugerencias([]); setShowSug(false); return; }
-    debounceSearch.current = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL ?? '';
-        const res = await fetch(`${baseUrl}/api/productos?q=${encodeURIComponent(q)}&per_page=6`);
-        const data = await res.json();
-        setSugerencias(data.items ?? []);
-        setShowSug(true);
-      } catch { /* silencioso */ }
-      finally { setBuscando(false); }
-    }, 300);
-  };
-
-  const handleSeleccionarProducto = (id: number) => {
-    setShowSug(false);
-    setBusqueda('');
-    navigate(`/productos/${id}`);
-  };
-
-  const handleBuscarEnter = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && busqueda.trim()) {
-      setShowSug(false);
-      navigate(`/productos?q=${encodeURIComponent(busqueda.trim())}`);
-      setBusqueda('');
-    }
-  };
 
   const NAV_STYLE    = { color: 'rgba(255,255,255,0.85)' };
   const ACTIVE_STYLE = { color: 'white', textDecoration: 'underline', textUnderlineOffset: 4 };
@@ -115,61 +67,6 @@ export default function Navbar() {
                 </Link>
               </li>
             </ul>
-
-            {/* ── Barra de búsqueda ── */}
-            <div ref={searchRef} style={{ position: 'relative', flex: 1, maxWidth: 320, margin: '0 8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.12)',
-                            border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
-                            padding: '4px 10px', gap: 6 }}>
-                <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>{buscando ? '⏳' : '🔍'}</span>
-                <input
-                  type="text"
-                  placeholder="Buscar productos..."
-                  value={busqueda}
-                  onChange={handleBusquedaChange}
-                  onFocus={() => sugerencias.length > 0 && setShowSug(true)}
-                  onKeyDown={handleBuscarEnter}
-                  style={{
-                    background: 'transparent', border: 'none', outline: 'none',
-                    color: 'white', fontSize: '0.85rem', width: '100%',
-                  }}
-                />
-              </div>
-              {showSug && sugerencias.length > 0 && (
-                <div style={{
-                  position: 'absolute', top: '110%', left: 0, right: 0,
-                  background: 'white', borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                  zIndex: 2000, overflow: 'hidden', border: '1px solid #e5e7eb',
-                }}>
-                  {sugerencias.map(p => (
-                    <div key={p.id_producto}
-                      onClick={() => handleSeleccionarProducto(p.id_producto)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '8px 12px', cursor: 'pointer',
-                        borderBottom: '1px solid #f3f4f6', fontSize: '0.85rem', color: '#374151',
-                      }}
-                      onMouseOver={e => (e.currentTarget.style.background = '#f9fafb')}
-                      onMouseOut={e  => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      {p.imagen_url && (
-                        <img src={p.imagen_url} alt={p.nombre}
-                          style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4 }} />
-                      )}
-                      <span>{p.nombre}</span>
-                    </div>
-                  ))}
-                  <div
-                    onClick={() => { navigate(`/productos?q=${encodeURIComponent(busqueda)}`); setShowSug(false); setBusqueda(''); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem',
-                             color: '#6c63ff', fontWeight: 600, background: '#f9fafb' }}
-                  >
-                    🔍 Ver todos los resultados para "{busqueda}"
-                  </div>
-                </div>
-              )}
-            </div>
 
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <Link to="/carrito"

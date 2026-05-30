@@ -7,9 +7,9 @@ from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
 
 from app import db
-from app.middleware import require_admin
+from app.utils.auth import require_admin
 from app.models import Usuario, RolUsuario, Cliente
-from app.services.auditoria import AuditoriaService
+from app.utils.services import AuditoriaService
 from app.utils.error_handlers import error_response
 from app.utils.validators import validate_email, validate_password, sanitize_string, validate_pagination
 

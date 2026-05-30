@@ -1,3 +1,90 @@
+# ==============================================================================
+# SERVICIO DE AUDITORÍA
+# Registra acciones CREATE / UPDATE / DELETE en la tabla auditoria_log.
+# Expone: AuditoriaService.log(tabla, accion, id_registro, ...)
+# ==============================================================================
+#Servicio de auditoría para registrar acciones críticas del sistema.
+import json
+import logging
+from flask import request
+from app import db
+
+logger = logging.getLogger(__name__)
+
+
+class AuditoriaService:
+
+    @staticmethod
+    def registrar(
+        tabla: str,
+        accion: str,
+        id_registro: int | None = None,
+        datos_anteriores: dict | None = None,
+        datos_nuevos: dict | None = None,
+        id_usuario: int | None = None,
+        id_cliente: int | None = None,
+    ):
+        """Registra un evento de auditoría en la base de datos."""
+        try:
+            from app.models import AuditoriaLog
+            log = AuditoriaLog(
+                tabla=tabla,
+                accion=accion,
+                id_registro=id_registro,
+                datos_anteriores=json.dumps(datos_anteriores) if datos_anteriores else None,
+                datos_nuevos=json.dumps(datos_nuevos) if datos_nuevos else None,
+                id_usuario=id_usuario,
+                id_cliente=id_cliente,
+                ip_address=_get_ip(),
+                user_agent=request.headers.get("User-Agent", "")[:200],
+            )
+            db.session.add(log)
+            # No hacemos commit aquí para no romper transacciones existentes
+        except Exception as e:
+            logger.error(f"Error al registrar auditoría: {e}")
+
+    @staticmethod
+    def registrar_movimiento_inventario(
+        id_producto: int,
+        tipo: str,
+        cantidad: int,
+        stock_anterior: int,
+        stock_nuevo: int,
+        motivo: str = "",
+        id_pedido: int | None = None,
+        id_usuario: int | None = None,
+    ):
+        """Registra un movimiento de inventario."""
+        try:
+            from app.models import MovimientoInventario
+            mov = MovimientoInventario(
+                id_producto=id_producto,
+                tipo=tipo,
+                cantidad=cantidad,
+                stock_anterior=stock_anterior,
+                stock_nuevo=stock_nuevo,
+                motivo=motivo,
+                id_pedido=id_pedido,
+                id_usuario=id_usuario,
+            )
+            db.session.add(mov)
+        except Exception as e:
+            logger.error(f"Error al registrar movimiento inventario: {e}")
+
+
+def _get_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:45]
+    return (request.remote_addr or "unknown")[:45]
+
+
+# ==============================================================================
+# GENERACIÓN DE PDFs (ReportLab)
+# Genera los 5 reportes PDF del sistema para Vendedor y Administrador.
+# Expone: generar_factura_pedido, generar_reporte_inventario,
+#         generar_facturacion_global, generar_pago_vendedores, generar_manifiesto_carga
+# ==============================================================================
 """
 pdf_reportes.py — Chukuta Express v3.0
 =======================================
@@ -738,6 +825,338 @@ def generar_manifiesto_carga(pedidos: list, fecha: Optional[str] = None) -> byte
          "Distribuir a cada repartidor antes de salir. "
          "Cualquier modificación comunicar al coordinador logístico.",
          W)
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+# ==============================================================================
+# PDF — COMPROBANTE DE PEDIDO PARA EL CLIENTE
+# Muestra resumen del pedido y su estado actual. Se genera cuando el estado
+# es confirmado, en_preparacion, en_camino o entregado.
+# Expone: generar_comprobante_cliente(pedido, detalles)
+# ==============================================================================
+
+def generar_comprobante_cliente(pedido: dict, detalles: list) -> bytes:
+    """
+    Comprobante de pedido para el cliente final.
+    Incluye: estado actual, datos del pedido, productos, total, método de pago.
+    pedido   – dict del modelo Pedido (to_dict con include_detalles=False + cliente_nombre/telefono)
+    detalles – lista de dicts DetallePedido.to_dict() con nombre_producto
+    """
+    from reportlab.lib import colors as RC
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle,
+        Paragraph, Spacer, HRFlowable,
+    )
+    import io, datetime
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=1.8*cm, bottomMargin=1.8*cm)
+    W = doc.width
+
+    C_PRI   = RC.HexColor("#6c63ff")
+    C_DARK  = RC.HexColor("#1f2a38")
+    C_GRAY  = RC.HexColor("#6b7280")
+    C_LIGHT = RC.HexColor("#f8fafc")
+    C_BRD   = RC.HexColor("#e2e8f0")
+    C_W     = RC.white
+
+    ESTADO_LABELS = {
+        "confirmado":     ("✅", "Confirmado",    RC.HexColor("#17a2b8")),
+        "en_preparacion": ("📦", "En preparación", RC.HexColor("#6c63ff")),
+        "en_camino":      ("🚚", "En camino",     RC.HexColor("#fd7e14")),
+        "entregado":      ("🎉", "Entregado",     RC.HexColor("#28a745")),
+        "pendiente":      ("⏳", "Pendiente",     RC.HexColor("#ffc107")),
+        "cancelado":      ("❌", "Cancelado",     RC.HexColor("#dc3545")),
+    }
+
+    def _s(nombre, **kw):
+        base = dict(fontName="Helvetica", fontSize=9, leading=12, textColor=C_DARK)
+        base.update(kw)
+        return ParagraphStyle(nombre, **base)
+
+    S_TITLE  = _s("t",  fontSize=20, fontName="Helvetica-Bold", textColor=C_DARK, spaceAfter=2)
+    S_SUB    = _s("s",  fontSize=10, textColor=C_GRAY)
+    S_BODY   = _s("b")
+    S_SMALL  = _s("sm", fontSize=7.5, textColor=C_GRAY)
+    S_HW     = _s("hw", fontSize=8.5, fontName="Helvetica-Bold", textColor=C_W, alignment=TA_CENTER)
+    S_TOTAL  = _s("to", fontSize=13, fontName="Helvetica-Bold", textColor=C_PRI, alignment=TA_RIGHT)
+
+    story = []
+
+    # Encabezado
+    estado_val = pedido.get("estado", "pendiente")
+    icono, label, col_est = ESTADO_LABELS.get(estado_val, ("📋", estado_val, C_DARK))
+    fecha_str = pedido.get("fecha", "")
+    try:
+        fecha_str = datetime.datetime.fromisoformat(fecha_str).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        pass
+
+    enc_izq = [
+        Paragraph("Chukuta Express", S_TITLE),
+        Paragraph("Comprobante de Pedido", _s("cp", fontSize=12, fontName="Helvetica-Bold", textColor=C_PRI)),
+        Paragraph(f"Para: {pedido.get('cliente_nombre', '—')}", S_SUB),
+    ]
+    enc_der = [
+        Paragraph(f"<b>N° Pedido:</b> #{pedido.get('id_pedido', '—')}", S_SMALL),
+        Paragraph(f"<b>Fecha:</b> {fecha_str}", S_SMALL),
+        Paragraph(f"<b>Seguimiento:</b> {pedido.get('codigo_seguimiento') or '—'}", S_SMALL),
+    ]
+    tenc = Table([[enc_izq, enc_der]], colWidths=[W*0.58, W*0.42])
+    tenc.setStyle(TableStyle([
+        ("VALIGN", (0,0),(-1,-1),"TOP"),
+        ("ALIGN", (1,0),(1,0),"RIGHT"),
+        ("LINEBELOW",(0,0),(-1,0),1,C_PRI),
+        ("BOTTOMPADDING",(0,0),(-1,0),6),
+    ]))
+    story.append(tenc)
+    story.append(Spacer(1,6))
+
+    # Pastilla de estado
+    t_est = Table([[Paragraph(f"{icono}  Estado: {label}", _s("est", fontSize=11,
+                    fontName="Helvetica-Bold", textColor=C_W, alignment=TA_CENTER))]], colWidths=[W])
+    t_est.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,-1),col_est),
+        ("TOPPADDING",(0,0),(-1,-1),8),
+        ("BOTTOMPADDING",(0,0),(-1,-1),8),
+        ("ROWBACKGROUNDS",(0,0),(-1,-1),[col_est]),
+    ]))
+    story.append(t_est)
+    story.append(Spacer(1,10))
+
+    # Datos del pedido
+    def _barra(txt):
+        t = Table([[Paragraph(txt, S_HW)]], colWidths=[W])
+        t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),C_DARK),
+                                ("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)]))
+        return t
+
+    story.append(_barra("📋  Datos del Pedido"))
+    story.append(Spacer(1,4))
+    metodo = (pedido.get("metodo_pago") or "—").replace("_"," ").title()
+    pago_v = "✔ Verificado" if pedido.get("pago_verificado") else "⏳ Pendiente verificación"
+    info = [
+        [Paragraph("<b>Teléfono:</b>", S_BODY), Paragraph(pedido.get("cliente_telefono","—"), S_BODY)],
+        [Paragraph("<b>Dirección de entrega:</b>", S_BODY), Paragraph(pedido.get("direccion_entrega","—"), S_BODY)],
+        [Paragraph("<b>Método de pago:</b>", S_BODY), Paragraph(metodo, S_BODY)],
+        [Paragraph("<b>Estado del pago:</b>", S_BODY), Paragraph(pago_v, S_BODY)],
+    ]
+    if pedido.get("notas"):
+        info.append([Paragraph("<b>Notas:</b>", S_BODY), Paragraph(pedido["notas"], S_BODY)])
+    ti = Table(info, colWidths=[4*cm, W-4*cm])
+    ti.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
+    story.append(ti)
+    story.append(Spacer(1,10))
+
+    # Productos
+    story.append(_barra("🛒  Productos del Pedido"))
+    story.append(Spacer(1,4))
+    filas = [["Producto","Cant.","Precio Unit.","Subtotal"]]
+    total_calc = 0.0
+    for d in detalles:
+        sub = float(d.get("subtotal") or float(d.get("precio_unitario",0))*int(d.get("cantidad",1)))
+        total_calc += sub
+        filas.append([d.get("nombre_producto","—"), str(d.get("cantidad",0)),
+                      f'Bs {float(d.get("precio_unitario",0)):,.2f}', f'Bs {sub:,.2f}'])
+    tp = Table(filas, colWidths=[W*0.44, W*0.1, W*0.22, W*0.24], repeatRows=1)
+    tp.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),C_PRI),("TEXTCOLOR",(0,0),(-1,0),C_W),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,0),8),
+        ("ALIGN",(1,0),(-1,-1),"RIGHT"),("ALIGN",(0,1),(0,-1),"LEFT"),
+        ("FONTSIZE",(0,1),(-1,-1),8),("ROWBACKGROUNDS",(0,1),(-1,-1),[C_W,C_LIGHT]),
+        ("GRID",(0,0),(-1,-1),0.3,C_BRD),
+        ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
+        ("LEFTPADDING",(0,0),(-1,-1),5),("RIGHTPADDING",(0,0),(-1,-1),5),
+    ]))
+    story.append(tp)
+    story.append(Spacer(1,6))
+
+    # Total
+    tot_real = float(pedido.get("total", total_calc))
+    t_tot = Table([["TOTAL:", f'Bs {tot_real:,.2f}']], colWidths=[W-4.5*cm, 4.5*cm])
+    t_tot.setStyle(TableStyle([
+        ("ALIGN",(0,0),(-1,-1),"RIGHT"),
+        ("FONTNAME",(0,0),(-1,-1),"Helvetica-Bold"),
+        ("FONTSIZE",(0,0),(-1,-1),13),
+        ("TEXTCOLOR",(0,0),(-1,-1),C_PRI),
+        ("LINEABOVE",(0,0),(-1,-1),1,C_PRI),
+        ("TOPPADDING",(0,0),(-1,-1),6),("BOTTOMPADDING",(0,0),(-1,-1),6),
+    ]))
+    story.append(t_tot)
+    story.append(Spacer(1,10))
+    story.append(HRFlowable(width=W, color=C_BRD, thickness=0.4))
+    story.append(Spacer(1,4))
+    story.append(Paragraph(
+        "Este comprobante es generado automáticamente por Chukuta Express. "
+        "Consérvalo como respaldo de tu compra.", S_SMALL))
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+# ==============================================================================
+# PDF — GUÍA DE ENVÍO (Delivery) PARA EL VENDEDOR
+# Etiqueta logística con datos del destinatario para adjuntar al paquete.
+# Expone: generar_guia_envio(pedido, detalles_vendedor, vendedor)
+# ==============================================================================
+
+def generar_guia_envio(pedido: dict, detalles_vendedor: list, vendedor: dict) -> bytes:
+    """
+    Guía de envío / etiqueta logística para el repartidor.
+    pedido            – dict del modelo Pedido + cliente_nombre / cliente_telefono
+    detalles_vendedor – lista de dicts DetallePedido del vendedor con nombre_producto
+    vendedor          – dict del modelo Usuario (nombre, email)
+    """
+    from reportlab.lib import colors as RC
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle,
+        Paragraph, Spacer, HRFlowable,
+    )
+    import io, datetime
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=1.8*cm, bottomMargin=1.8*cm)
+    W = doc.width
+
+    C_PRI   = RC.HexColor("#6c63ff")
+    C_DARK  = RC.HexColor("#1f2a38")
+    C_ACC   = RC.HexColor("#ff7043")
+    C_LIGHT = RC.HexColor("#f8fafc")
+    C_BRD   = RC.HexColor("#e2e8f0")
+    C_W     = RC.white
+    C_GRAY  = RC.HexColor("#6b7280")
+
+    def _s(n, **kw):
+        base = dict(fontName="Helvetica", fontSize=9, leading=12, textColor=C_DARK)
+        base.update(kw)
+        return ParagraphStyle(n, **base)
+
+    S_HW   = _s("hw",  fontSize=9, fontName="Helvetica-Bold", textColor=C_W, alignment=TA_CENTER)
+    S_BIG  = _s("big", fontSize=22, fontName="Helvetica-Bold", textColor=C_DARK, alignment=TA_CENTER)
+    S_MED  = _s("med", fontSize=13, fontName="Helvetica-Bold", textColor=C_DARK)
+    S_BODY = _s("bd")
+    S_SMALL= _s("sm",  fontSize=7.5, textColor=C_GRAY)
+
+    story = []
+
+    fecha_str = pedido.get("fecha","")
+    try:
+        fecha_str = datetime.datetime.fromisoformat(fecha_str).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        pass
+
+    # Encabezado de guía
+    t_header = Table([[
+        Paragraph("Chukuta Express", _s("ch", fontSize=16, fontName="Helvetica-Bold", textColor=C_DARK)),
+        Paragraph(f"GUÍA DE ENVÍO\n#{pedido.get('id_pedido','—')}", _s("gi", fontSize=18,
+                   fontName="Helvetica-Bold", textColor=C_ACC, alignment=TA_CENTER)),
+    ]], colWidths=[W*0.5, W*0.5])
+    t_header.setStyle(TableStyle([
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+        ("LINEBELOW",(0,0),(-1,0),2,C_ACC),
+        ("BOTTOMPADDING",(0,0),(-1,0),8),
+    ]))
+    story.append(t_header)
+    story.append(Spacer(1,10))
+
+    # ── DESTINATARIO (grande) ──────────────────────────────────────────────
+    def _barra(txt, color=C_PRI):
+        t = Table([[Paragraph(txt, S_HW)]], colWidths=[W])
+        t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),color),
+                                ("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)]))
+        return t
+
+    story.append(_barra("📦  DESTINATARIO", C_DARK))
+    story.append(Spacer(1,6))
+
+    story.append(Paragraph(pedido.get("cliente_nombre","—"), S_BIG))
+    story.append(Spacer(1,4))
+
+    t_dest = Table([
+        [Paragraph("<b>📞 Teléfono:</b>", S_MED),
+         Paragraph(pedido.get("cliente_telefono","—"), _s("ph", fontSize=13, fontName="Helvetica-Bold", textColor=C_PRI))],
+        [Paragraph("<b>📍 Dirección:</b>", _s("dir", fontSize=10, fontName="Helvetica-Bold")),
+         Paragraph(pedido.get("direccion_entrega","—"), _s("da", fontSize=10))],
+    ], colWidths=[3.5*cm, W-3.5*cm])
+    t_dest.setStyle(TableStyle([
+        ("VALIGN",(0,0),(-1,-1),"TOP"),
+        ("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5),
+        ("BACKGROUND",(0,0),(-1,-1),C_LIGHT),
+        ("BOX",(0,0),(-1,-1),1,C_BRD),
+    ]))
+    story.append(t_dest)
+    story.append(Spacer(1,10))
+
+    # ── REMITENTE ──────────────────────────────────────────────────────────
+    story.append(_barra("🏪  REMITENTE / TIENDA", C_PRI))
+    story.append(Spacer(1,4))
+    story.append(Paragraph(vendedor.get("nombre","—"),
+                 _s("vn", fontSize=13, fontName="Helvetica-Bold")))
+    story.append(Paragraph(vendedor.get("email","—"), S_SMALL))
+    story.append(Spacer(1,10))
+
+    # ── CONTENIDO DEL PAQUETE ──────────────────────────────────────────────
+    story.append(_barra("📋  CONTENIDO DEL PAQUETE"))
+    story.append(Spacer(1,4))
+
+    filas = [["Producto","Cant.","Peso aprox."]]
+    for d in detalles_vendedor:
+        filas.append([d.get("nombre_producto","—"), str(d.get("cantidad",1)), "—"])
+
+    tc = Table(filas, colWidths=[W*0.60, W*0.20, W*0.20], repeatRows=1)
+    tc.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),C_DARK),("TEXTCOLOR",(0,0),(-1,0),C_W),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,0),8),
+        ("ALIGN",(1,0),(-1,-1),"CENTER"),
+        ("FONTSIZE",(0,1),(-1,-1),8),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1),[C_W,C_LIGHT]),
+        ("GRID",(0,0),(-1,-1),0.3,C_BRD),
+        ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
+        ("LEFTPADDING",(0,0),(-1,-1),5),
+    ]))
+    story.append(tc)
+    story.append(Spacer(1,10))
+
+    # ── Info del pedido ────────────────────────────────────────────────────
+    metodo = (pedido.get("metodo_pago") or "—").replace("_"," ").title()
+    estado = (pedido.get("estado") or "—").replace("_"," ").title()
+    t_info = Table([
+        ["N° Pedido:", f'#{pedido.get("id_pedido","—")}',
+         "Fecha:", fecha_str],
+        ["Estado:", estado, "Método pago:", metodo],
+        ["Seguimiento:", pedido.get("codigo_seguimiento") or "—", "", ""],
+    ], colWidths=[3*cm, W*0.30, 3*cm, W*0.27])
+    t_info.setStyle(TableStyle([
+        ("FONTNAME",(0,0),(0,-1),"Helvetica-Bold"),("FONTNAME",(2,0),(2,-1),"Helvetica-Bold"),
+        ("FONTSIZE",(0,0),(-1,-1),8),
+        ("BACKGROUND",(0,0),(-1,-1),C_LIGHT),
+        ("GRID",(0,0),(-1,-1),0.3,C_BRD),
+        ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
+        ("LEFTPADDING",(0,0),(-1,-1),6),
+    ]))
+    story.append(t_info)
+    story.append(Spacer(1,10))
+
+    story.append(HRFlowable(width=W, color=C_BRD, thickness=0.4))
+    story.append(Spacer(1,4))
+    story.append(Paragraph(
+        f"Guía generada: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')} — "
+        "Chukuta Express. El repartidor debe presentar este documento al entregar el paquete.",
+        S_SMALL))
 
     doc.build(story)
     return buf.getvalue()

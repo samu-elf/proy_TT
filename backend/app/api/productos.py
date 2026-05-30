@@ -9,9 +9,9 @@ from flask import Blueprint, jsonify, request
 
 
 from app import db
-from app.middleware import require_vendedor, require_admin
+from app.utils.auth import require_vendedor, require_admin
 from app.models import Producto, Categoria
-from app.services.auditoria import AuditoriaService
+from app.utils.services import AuditoriaService
 from app.utils.validators import validate_producto, validate_pagination, sanitize_string
 from app.utils.error_handlers import error_response
 

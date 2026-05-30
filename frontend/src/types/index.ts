@@ -99,6 +99,7 @@ export interface Pedido {
   metodo_pago?: string;
   pago_verificado?: boolean;
   codigo_seguimiento?: string;
+  comprobante_pago_url?: string;   // imagen de pago subida por el cliente
   fecha: string;
   actualizado?: string;
   detalles?: DetallePedido[];

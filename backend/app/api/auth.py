@@ -11,7 +11,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 from app import db
-from app.middleware import generate_token
+from app.utils.auth import generate_token
 from app.models import Cliente, Usuario
 from app.utils.validators import validate_registro_cliente, sanitize_string
 

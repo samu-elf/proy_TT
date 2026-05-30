@@ -2,6 +2,23 @@ import apiClient from './client';
 import { adminRequest } from './client';
 import type { CrearPedidoResponse, Pedido, PaginatedResponse } from '../types';
 
+const BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? '';
+
+/** Descarga/abre un PDF autenticado con el token indicado. */
+function _abrirPdf(url: string, token: string, filename: string) {
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => { if (!r.ok) throw new Error(`Error ${r.status}`); return r.blob(); })
+    .then(blob => {
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = u; a.target = '_blank'; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(u), 30_000);
+    })
+    .catch(e => alert(`No se pudo generar el PDF: ${(e as Error).message}`));
+}
+
 export const pedidosApi = {
   // ── Cliente ──────────────────────────────────────────────────────────────
   crear: (data: { direccion: string; metodo_pago?: string; notas?: string }) =>
@@ -20,6 +37,30 @@ export const pedidosApi = {
 
   detalleCompleto: (id: number) =>
     apiClient.get<Pedido>(`/cliente/mis-pedidos/${id}`),
+
+  /** Sube la imagen del comprobante de pago del cliente */
+  subirComprobante: (pedidoId: number, archivo: File): Promise<{ url: string }> => {
+    const form = new FormData();
+    form.append('comprobante', archivo);
+    const token = localStorage.getItem('cliente_token') ?? '';
+    return fetch(`${BASE}/cliente/pedidos/${pedidoId}/comprobante`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    }).then(async r => {
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `Error ${r.status}`);
+      }
+      return r.json();
+    });
+  },
+
+  /** Descarga el comprobante de pedido PDF para el cliente */
+  descargarComprobantePdf: (pedidoId: number) => {
+    const token = localStorage.getItem('cliente_token') ?? '';
+    _abrirPdf(`${BASE}/cliente/reportes/comprobante/${pedidoId}`, token, `comprobante_pedido_${pedidoId}.pdf`);
+  },
 
   // ── Admin / Operador ─────────────────────────────────────────────────────
   listarAdmin: (params?: { estado?: string; page?: number }) =>
@@ -41,24 +82,4 @@ export const pedidosApi = {
 
   reporteResumen: () =>
     adminRequest({ method: 'GET', url: '/admin/reportes/resumen' }),
-
-  descargarRecibo: async (pedidoId: number, customFilename?: string, customTitulo?: string): Promise<void> => {
-    const token = localStorage.getItem('cliente_token');
-    const baseUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/cliente/mis-pedidos/${pedidoId}/recibo`;
-    const urlWithParams = customTitulo ? `${baseUrl}?titulo=${encodeURIComponent(customTitulo)}` : baseUrl;
-    
-    const response = await fetch(urlWithParams, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('No se pudo descargar el recibo');
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = customFilename || `recibo_chukuta_${pedidoId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  },
 };

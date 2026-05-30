@@ -79,7 +79,6 @@ def require_cliente(f):
 
     return decorated
 
-
 def require_usuario(roles: list[int] | None = None):
     """
     Decorador factory para usuarios internos (vendedor, admin, operador).
@@ -117,11 +116,9 @@ def require_admin(f):
     """Exige rol de Administrador (rol=2)."""
     return require_usuario(roles=[2])(f)
 
-
 def require_vendedor(f):
     """Exige rol de Vendedor (rol=1) o Admin (rol=2)."""
     return require_usuario(roles=[1, 2])(f)
-
 
 def require_operador(f):
     """Exige rol de Operador Logístico (rol=3) o Admin (rol=2)."""

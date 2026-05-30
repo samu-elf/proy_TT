@@ -19,7 +19,6 @@ export default function Carrito() {
   const [error, setError] = useState('');
   const [pedidoCreado, setPedidoCreado] = useState<CrearPedidoResponse | null>(null);
   const [actualizando, setActualizando] = useState<number | null>(null);
-  const [descargandoRecibo, setDescargandoRecibo] = useState(false);
 
   const cargarCarrito = async () => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -61,18 +60,6 @@ export default function Carrito() {
       setError(err instanceof Error ? err.message : 'Error al actualizar cantidad');
     } finally {
       setActualizando(null);
-    }
-  };
-
-  const handleDescargarRecibo = async () => {
-    if (!pedidoCreado) return;
-    setDescargandoRecibo(true);
-    try {
-      await pedidosApi.descargarRecibo(pedidoCreado.id_pedido, 'informacion_de_producto.pdf', 'INFORMACION DE COMPRA');
-    } catch {
-      alert('No se pudo descargar la información de producto.');
-    } finally {
-      setDescargandoRecibo(false);
     }
   };
 
@@ -142,16 +129,6 @@ export default function Carrito() {
             </div>
           )}
 
-          <button
-            className="btn w-100 mb-2 fw-semibold"
-            style={{ background: '#10b981', border: 'none', color: 'white' }}
-            onClick={handleDescargarRecibo}
-            disabled={descargandoRecibo}
-          >
-            {descargandoRecibo
-              ? <><span className="spinner-border spinner-border-sm me-2" />Generando PDF...</>
-              : '🧾 Descargar información de producto'}
-          </button>
           <div className="d-flex gap-2 mt-2">
             <Link to="/mis-pedidos" className="btn btn-primary flex-fill"
               style={{ background: '#6c63ff', border: 'none' }}>

@@ -3,16 +3,16 @@ Blueprint del Cliente — perfil, historial de pedidos detallado.
 Complementa al carrito (carrito_bp) y pedidos (pedidos_bp).
 """
 import logging
-import io
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request
 
 from app import db
-from app.middleware import require_cliente
+from app.utils.auth import require_cliente
+#from app.middleware import require_cliente
 from app.models import Cliente, Pedido
 from app.utils.error_handlers import error_response
 from app.utils.validators import sanitize_string, validate_pagination
-from app.services.recibo_cliente import generar_recibo_cliente
+
 
 logger = logging.getLogger(__name__)
 
@@ -101,30 +101,3 @@ def detalle_pedido_extendido(pedido_id: int):
     if not pedido:
         return error_response("Pedido no encontrado", 404)
     return jsonify(pedido.to_dict(include_detalles=True))
-
-
-# ── Recibo PDF ────────────────────────────────────────────────────────────────
-
-@cliente_bp.get("/mis-pedidos/<int:pedido_id>/recibo")
-@require_cliente
-def descargar_recibo(pedido_id: int):
-    """Genera y devuelve el recibo PDF del pedido para el cliente autenticado."""
-    pedido = Pedido.query.filter_by(
-        id_pedido=pedido_id, id_cliente=request.cliente_id
-    ).first()
-    if not pedido:
-        return error_response("Pedido no encontrado", 404)
-
-    cliente = Cliente.query.get_or_404(request.cliente_id)
-
-    detalles = [d.to_dict() for d in pedido.detalles]
-
-    titulo = request.args.get("titulo", "RECIBO DE COMPRA")
-    pdf_bytes = generar_recibo_cliente(pedido, cliente, detalles, titulo=titulo)
-
-    return send_file(
-        io.BytesIO(pdf_bytes),
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name=f"recibo_chukuta_{pedido_id}.pdf",
-    )

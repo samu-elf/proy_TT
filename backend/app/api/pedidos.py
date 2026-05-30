@@ -9,12 +9,12 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 
 from app import db
-from app.middleware import require_cliente, require_vendedor, require_operador, require_admin
+from app.utils.auth import require_cliente, require_vendedor, require_operador, require_admin
 from app.models import (
     CarritoItem, DetallePedido, HistorialPedido,
     Pedido, Producto, EstadoPedido,
 )
-from app.services.auditoria import AuditoriaService
+from app.utils.services import AuditoriaService
 from app.utils.error_handlers import error_response
 from app.utils.validators import validate_pagination, sanitize_string
 

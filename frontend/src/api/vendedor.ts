@@ -147,4 +147,12 @@ export const reportesVendedorApi = {
     const hoy = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     _abrirPdfVendedor('/vendedor/reportes/inventario', `inventario_${hoy}.pdf`);
   },
+
+  /** Descarga la guía de envío PDF de un pedido (delivery label) */
+  descargarGuiaEnvio(pedidoId: number): void {
+    _abrirPdfVendedor(
+      `/vendedor/reportes/guia-envio/${pedidoId}`,
+      `guia_envio_pedido_${pedidoId}.pdf`,
+    );
+  },
 };

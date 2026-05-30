@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { productosApi } from '../../../api/productos';
 import { carritoApi } from '../../../api/carrito';
 import { useCliente } from '../../auth/context/ClienteContext';
@@ -8,7 +8,6 @@ import type { Producto, Categoria } from '../../../types';
 
 export default function Catalogo() {
   const { isAuthenticated, setCantidadCarrito, cantidadCarrito } = useCliente();
-  const location = useLocation();
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -23,15 +22,6 @@ export default function Catalogo() {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Leer parámetro q de la URL (vía búsqueda desde Navbar)
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const qParam = params.get('q');
-    if (qParam) {
-      setBusqueda(qParam);
-    }
-  }, [location.search]);
 
   useEffect(() => {
     productosApi.categorias()

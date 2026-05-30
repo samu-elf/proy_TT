@@ -9,6 +9,7 @@
  *   pedidos   → Pedidos que incluyen sus ítems + cambio de estado
  *   perfil    → Datos del vendedor
  */
+
 import { useEffect, useState, useCallback } from 'react';
 import { productosApi }  from '../../../api/productos';
 import { vendedorApi, reportesVendedorApi } from '../../../api/vendedor';
@@ -55,6 +56,8 @@ const FORM_VACÍO: FormProducto = {
   nombre: '', descripcion: '', precio_venta: '', stock: '',
   stock_minimo: '5', id_categoria: '', imagen_url: '', activo: true,
 };
+
+const API_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5000';
 
 interface Props { onLogout: () => void }
 
@@ -1048,6 +1051,60 @@ export default function DashboardVendedor({ onLogout }: Props) {
                     </div>
                   </div>
                 )}
+
+                {/* ── Comprobante de pago del cliente + Guía de envío ─────── */}
+                <div className="card border-0 rounded-3"
+                  style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.08)', padding: '20px' }}>
+                  <h6 style={{ fontWeight: 700, marginBottom: 14 }}>Comprobante de pago y acciones</h6>
+
+                  {/* Imagen del comprobante subida por el cliente */}
+                  {pedidoDetalle.comprobante_pago_url ? (
+                    <div className="mb-3">
+                      <p className="small text-muted mb-1">📎 Comprobante subido por el cliente:</p>
+                      {pedidoDetalle.comprobante_pago_url.endsWith('.pdf') ? (
+                        <a href={`${API_URL}${pedidoDetalle.comprobante_pago_url}`}
+                          target="_blank" rel="noreferrer"
+                          className="btn btn-sm btn-outline-primary">
+                          📄 Ver comprobante PDF
+                        </a>
+                      ) : (
+                        /* ── MODIFICACIÓN: Enlace envolviendo la imagen para abrir en pestaña nueva ── */
+                        <a 
+                          href={`${API_URL}${pedidoDetalle.comprobante_pago_url}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          title="Haz clic para ver la imagen en tamaño completo"
+                          style={{ display: 'inline-block', cursor: 'zoom-in' }} // Cambia el cursor a una lupa (+) al pasar el mouse
+                        >
+                          <img
+                            src={`${API_URL}${pedidoDetalle.comprobante_pago_url}`}
+                            alt="Comprobante de pago"
+                            style={{
+                              maxWidth: '100%', maxHeight: 220, borderRadius: 8,
+                              border: '1px solid #e2e8f0', objectFit: 'contain', display: 'block',
+                            }}
+                          />
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="alert alert-warning py-2 small mb-3">
+                      ⚠️ El cliente aún no ha subido su comprobante de pago.
+                    </div>
+                  )}
+
+                  {/* Botón Guía de envío (disponible desde confirmado) */}
+                  {['confirmado','en_preparacion','en_camino','entregado'].includes(pedidoDetalle.estado) && (
+                    <button
+                      className="btn btn-sm fw-semibold"
+                      style={{ border: `1px solid #ff7043`, color: '#ff7043' }}
+                      onClick={() => reportesVendedorApi.descargarGuiaEnvio(pedidoDetalle.id_pedido)}
+                      title="Descargar guía de envío / etiqueta logística">
+                      🚚 Descargar Guía de Envío PDF
+                    </button>
+                  )}
+                </div>
+
               </div>
             )}
           </div>

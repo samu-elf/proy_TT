@@ -5,7 +5,7 @@ CORRECCIÓN: Validación de stock al agregar, manejo correcto de cantidades.
 import logging
 from flask import Blueprint, jsonify, request
 from app import db
-from app.middleware import require_cliente
+from app.utils.auth import require_cliente
 from app.models import CarritoItem, Producto
 from app.utils.error_handlers import error_response
 
